@@ -324,6 +324,8 @@ def convert(glyph, maxDistance):
 	return ng
 
 def convertFont(f, maxDistanceValue, progressBar):
+	if f == None:
+		return
 	root, tail = ospath.split(f.path)
 	QuadraticUFOTail = 'Quadratic_' + tail.split('.')[0] + '.ufo'
 	QuadraticUFOPath = ospath.join(root, QuadraticUFOTail)
