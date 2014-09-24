@@ -391,6 +391,9 @@ class InterfaceWindow(BaseWindowController):
 		scale        = info['scale']
 		doodle_glyph = info['glyph']
 
+		if doodle_glyph == None:
+			return
+
 		convertedGlyph = convert(CurrentGlyph().copy(), self.maxDistanceValue)
 
 		for c in convertedGlyph:
