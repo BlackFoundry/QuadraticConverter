@@ -326,11 +326,15 @@ def convert(glyph, maxDistance):
 def convertFont(f, maxDistanceValue, progressBar):
 	if f == None:
 		return
-	root, tail = ospath.split(f.path)
-	QuadraticUFOTail = 'Quadratic_' + tail.split('.')[0] + '.ufo'
-	QuadraticUFOPath = ospath.join(root, QuadraticUFOTail)
-	f.save(QuadraticUFOPath)
-	nf = RFont(QuadraticUFOPath)
+	hasPath = (f.path != None)
+	if hasPath:
+		root, tail = ospath.split(f.path)
+		QuadraticUFOTail = 'Quadratic_' + tail.split('.')[0] + '.ufo'
+		QuadraticUFOPath = ospath.join(root, QuadraticUFOTail)
+		f.save(QuadraticUFOPath)
+		nf = RFont(QuadraticUFOPath)
+	else:
+		nf = f
 	nf.lib['com.typemytype.robofont.segmentType'] = 'qCurve'
 	componentGlyphs = []
 	progressBar.setTickCount((len(nf)+9)/10)
@@ -352,7 +356,8 @@ def convertFont(f, maxDistanceValue, progressBar):
 			nf[g.name].components.append(component)
 		count = progress(count)
 	nf.update()
-	nf.save()
+	if hasPath:
+		nf.save()
 
 # - - - - - - - - - - - - - - - - -
 
