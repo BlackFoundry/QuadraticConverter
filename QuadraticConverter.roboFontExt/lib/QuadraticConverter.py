@@ -332,7 +332,7 @@ def convertFont(f, maxDistanceValue, progressBar):
 		QuadraticUFOPath = ospath.join(root, QuadraticUFOTail)
 	else:
 		temp = tempfile.NamedTemporaryFile(delete=True)
-		name = f.info.postscriptFullName
+		name = f.info.postscriptFontName
 		if name == '' or name == None:
 			name = 'temp'
 		QuadraticUFOPath = ospath.join(temp.name, 'Quadratic_' + name + '.ufo')
