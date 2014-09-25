@@ -18,6 +18,7 @@ from mojo.drawingTools import drawGlyph, save, restore, stroke, fill, strokeWidt
 from mojo.UI import UpdateCurrentGlyphView
 from os import path as ospath
 import sys
+import tempfile
 
 class Point(object):
 	__slots__ = ('x', 'y')
