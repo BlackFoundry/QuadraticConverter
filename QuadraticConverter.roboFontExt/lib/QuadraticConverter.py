@@ -68,25 +68,25 @@ def cubicInflectionParam((p1, c1, c2, p2)):
 	vc = p2 - (3.0 * c2) + (3.0 * c1) - p1
 	(a, b, c) = (det2x2(vb, vc), det2x2(va, vc), det2x2(va, vb))
 	# now we have to solve [ a t^2 + b t + c = 0 ]
-	debug = False
+	#debug = False
 	eps = 1.0e-6
 	if abs(a) < eps:
 		if abs(b) < eps:
-			if debug: print "Case A", b
+			#if debug: print "Case A", b
 			return None
 		t = - c / b
 		if t < eps or t > 1.0-eps:
-			if debug: print "Case B", t
+			#if debug: print "Case B", t
 			return None
 		return (t, t)
 	disc = b * b - 4.0 * a * c
 	if disc < 0.0:
-		if debug: print "Case C", disc
+		#if debug: print "Case C", disc
 		return None
 	if disc < eps:
 		t = - b / (2.0 * a)
 		if t < eps or t > 1.0-eps:
-			if debug: print "Case D", t
+			#if debug: print "Case D", t
 			return None
 		return (t, t)
 	disc = sqrt(disc)
@@ -96,11 +96,11 @@ def cubicInflectionParam((p1, c1, c2, p2)):
 		root1, root2 = root2, root1
 	if root1 < eps:
 		if root2 < eps:
-			if debug: print "Case E", (root1, root2)
+			#if debug: print "Case E", (root1, root2)
 			return None
 		if root2 <= 1.0 - eps:
 			return (root2, root2)
-		if debug: print "Case F", (root1, root2)
+		#if debug: print "Case F", (root1, root2)
 		return None
 	if root1 <= 1.0 - eps:
 		if root2 <= 1.0 - eps:
