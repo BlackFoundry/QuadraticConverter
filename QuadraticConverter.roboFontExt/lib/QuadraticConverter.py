@@ -17,6 +17,7 @@ from AppKit import *
 from mojo.drawingTools import drawGlyph, save, restore, stroke, fill, strokeWidth
 from mojo.UI import UpdateCurrentGlyphView
 from os import path as ospath
+import sys
 
 class Point(object):
 	__slots__ = ('x', 'y')
@@ -438,7 +439,10 @@ class InterfaceWindow(BaseWindowController):
 	def convertCurrentFontCallback(self, sender):
 		f = CurrentFont()
 		progress = self.startProgress(u"Converting current font…")
-		convertFont(f, self.maxDistanceValue, progress)
+		try:
+			convertFont(f, self.maxDistanceValue, progress)
+		except:
+			print "Unexpected error in QuadraticConverter:", sys.exc_info()[0]
 		progress.close()
 		self.w.close()
 
