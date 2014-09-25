@@ -17,8 +17,7 @@ from AppKit import *
 from mojo.drawingTools import drawGlyph, save, restore, stroke, fill, strokeWidth
 from mojo.UI import UpdateCurrentGlyphView
 from os import path as ospath
-import sys
-import tempfile
+import sys, tempfile
 
 class Point(object):
 	__slots__ = ('x', 'y')
@@ -332,8 +331,11 @@ def convertFont(f, maxDistanceValue, progressBar):
 		QuadraticUFOTail = 'Quadratic_' + tail.split('.')[0] + '.ufo'
 		QuadraticUFOPath = ospath.join(root, QuadraticUFOTail)
 	else:
-		temp = tempfile.NamedTemporaryFile(suffix='.ufo', delete=True)
-		QuadraticUFOPath = temp.name
+		temp = tempfile.NamedTemporaryFile(delete=True)
+		name = f.info.postscriptFullName
+		if name == '' or name == None:
+			name = 'temp'
+		QuadraticUFOPath = ospath.join(temp.name, 'Quadratic_' + name + '.ufo')
 		temp.close()
 	nf = f.copy()
 	nf.lib['com.typemytype.robofont.segmentType'] = 'qCurve'
