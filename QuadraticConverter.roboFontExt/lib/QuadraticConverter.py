@@ -311,16 +311,22 @@ def convertFont(f, maxDistanceValue, progressBar):
 		return
 	if f.path != None:
 		root, tail = ospath.split(f.path)
-		QuadraticUFOTail = 'Quadratic_' + tail.split('.')[0] + '.ufo'
-		QuadraticUFOPath = ospath.join(root, QuadraticUFOTail)
+		name, ext = os.path.splitext(tail)
+		tail = 'Quadratic_' + name + '.ufo'
+		quadPath = ospath.join(root, tail)
+		f.save(quadPath)
+		nf = RFont(quadPath)
 	else:
+		import robofab.interface.all.dialogs as Dialogs
+		Dialogs.Message("Please save your file as a UFO first.")
+		return
 		temp = tempfile.NamedTemporaryFile(delete=True)
 		name = f.info.postscriptFontName
 		if name == '' or name == None:
 			name = 'temp'
-		QuadraticUFOPath = ospath.join(temp.name, 'Quadratic_' + name + '.ufo')
+		quadPath = ospath.join(temp.name, 'Quadratic_' + name + '.ufo')
 		temp.close()
-	nf = f.copy()
+		nf = f.copy()
 	nf.lib['com.typemytype.robofont.segmentType'] = 'qCurve'
 	componentGlyphs = []
 	progressBar.setTickCount((len(nf)+9)/10 + 2)
@@ -341,9 +347,10 @@ def convertFont(f, maxDistanceValue, progressBar):
 		for component in g.components:
 			nf[g.name].components.append(component)
 		count = progress(count)
-	progressBar.update(text=u'Saving, then opening…')
-	nf.save(QuadraticUFOPath)
-	OpenFont(QuadraticUFOPath)
+	#progressBar.update(text=u'Saving, then opening…')
+	nf.update()
+	#nf.save(quadPath)
+	#OpenFont(quadPath)
 
 # - - - - - - - - - - - - - - - - -
 
