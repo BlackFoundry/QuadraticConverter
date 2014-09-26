@@ -35,5 +35,7 @@
 	<string>0.5</string>
 	<key>repository</key>
 	<string>sansplomb/QuadraticConverter</string>
+	<key>extensionPath</key>
+	<string>QuadraticConverter.roboFontExt</string>
 </dict>
 </plist>
