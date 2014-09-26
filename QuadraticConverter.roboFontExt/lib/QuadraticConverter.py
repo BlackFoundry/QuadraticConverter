@@ -173,9 +173,6 @@ def adaptiveConvexCubicSplit(cubic, dmax):
 	Assumes the cubic curve has no inflection point.
 	Many thanks to Adrian Colomitchi.
 	http://caffeineowl.com/graphics/2d/vectorial/cubic2quad01.html"""
-	def halve():
-		c1, c2 = splitCubic(0.5, cubic)
-		return [c1, c2]
 	(p1, c1, c2, p2) = cubic
 	#d0 = 0.5 * ((3.0 * c1) - p1)
 	#d1 = 0.5 * ((3.0 * c2) - p2)
@@ -188,14 +185,16 @@ def adaptiveConvexCubicSplit(cubic, dmax):
 	if t > 1.0:
 		return [cubic] # should not happen but just in case
 	if t >= 0.5:
-		return halve()
+		c1, c2 = splitCubic(0.5, cubic)
+		return [c1, c2]
 	#print "adaptive split at", t, (1.0-t)
 	cub0, tempcubic = splitCubic(t, cubic)
 	t2 = (1.0 - t - t) / (1.0 - t)
 	cub1, cub2 = splitCubic(t2, tempcubic)
 	(m0, m1, m2, m3) = cub1
 	if (m0 - m3).length() < 30:
-		return halve()
+		c1, c2 = splitCubic(0.5, cubic)
+		return [adaptiveConvexCubicSplit(c1, dmax), adaptiveConvexCubicSplit(c2, dmax)]
 	return [cub0] + adaptiveConvexCubicSplit(cub1, dmax) + [cub2]
 
 def adaptiveCubicSplit(cubic, dmax):
