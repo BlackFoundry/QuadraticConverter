@@ -194,7 +194,7 @@ def adaptiveConvexCubicSplit(cubic, dmax):
 	(m0, m1, m2, m3) = cub1
 	if (m0 - m3).length() < 30:
 		c1, c2 = splitCubic(0.5, cubic)
-		return [adaptiveConvexCubicSplit(c1, dmax), adaptiveConvexCubicSplit(c2, dmax)]
+		return adaptiveConvexCubicSplit(c1, dmax) + adaptiveConvexCubicSplit(c2, dmax)
 	return [cub0] + adaptiveConvexCubicSplit(cub1, dmax) + [cub2]
 
 def adaptiveCubicSplit(cubic, dmax):
