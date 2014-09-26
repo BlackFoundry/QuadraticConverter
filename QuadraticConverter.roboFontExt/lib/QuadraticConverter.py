@@ -17,7 +17,7 @@ from AppKit import *
 from mojo.drawingTools import drawGlyph, save, restore, stroke, fill, strokeWidth
 from mojo.UI import UpdateCurrentGlyphView
 from os import path as ospath
-import sys
+import sys, tempfile
 
 class Point(object):
 	__slots__ = ('x', 'y')
@@ -311,38 +311,40 @@ def convert(glyph, maxDistance):
 				print "Unknown segment type: "+seg.type+". Skipping."
 				p0 = seg.points[-1]
 			prevSeg = seg
-	ng = RGlyph()
-	ng.width = glyph.width
-	ng.preferredSegmentStyle = 'qcurve'
-	pen = ReverseContourPointPen(ng.getPointPen())
+	glyph.clear()
+	glyph.width = glyph.width
+	glyph.preferredSegmentStyle = 'qcurve'
+	pen = ReverseContourPointPen(glyph.getPointPen())
 	for cmds in conts:
 		pen.beginPath()
 		for cmd in cmds:
 			action, args = cmd
 			action(pen, args)
 		pen.endPath()
-	ng.update()
-	return ng
+	return glyph
 
 def convertFont(f, maxDistanceValue, progressBar):
 	if f == None:
 		return
-	hasPath = (f.path != None)
-	if hasPath:
+	if f.path != None:
 		root, tail = ospath.split(f.path)
 		QuadraticUFOTail = 'Quadratic_' + tail.split('.')[0] + '.ufo'
 		QuadraticUFOPath = ospath.join(root, QuadraticUFOTail)
-		f.save(QuadraticUFOPath)
-		nf = RFont(QuadraticUFOPath)
 	else:
-		nf = f
+		temp = tempfile.NamedTemporaryFile(delete=True)
+		name = f.info.postscriptFontName
+		if name == '' or name == None:
+			name = 'temp'
+		QuadraticUFOPath = ospath.join(temp.name, 'Quadratic_' + name + '.ufo')
+		temp.close()
+	nf = f.copy()
 	nf.lib['com.typemytype.robofont.segmentType'] = 'qCurve'
 	componentGlyphs = []
-	progressBar.setTickCount((len(nf)+9)/10)
+	progressBar.setTickCount((len(nf)+9)/10 + 2)
 	count = 0
 	def progress(count):
 		if count % 10 == 0:
-			progressBar.update()
+			progressBar.update(text=u"Converting glyphs…")
 		return count + 1
 	for g in nf:
 		if len(g.components) > 0:
@@ -350,15 +352,15 @@ def convertFont(f, maxDistanceValue, progressBar):
 			if len(g) > 0:
 				print "Warning: glyph '"+g.name+"' has", len(g.components), "components and", len(g), "contours."
 		else:
-			nf[g.name] = convert(g, maxDistanceValue)
+			convert(g, maxDistanceValue)
 			count = progress(count)
 	for g in componentGlyphs:
 		for component in g.components:
 			nf[g.name].components.append(component)
 		count = progress(count)
-	nf.update()
-	if hasPath:
-		nf.save()
+	progressBar.update(text=u'Saving, then opening…')
+	nf.save(QuadraticUFOPath)
+	OpenFont(QuadraticUFOPath)
 
 # - - - - - - - - - - - - - - - - -
 
@@ -438,11 +440,11 @@ class InterfaceWindow(BaseWindowController):
 
 	def convertCurrentFontCallback(self, sender):
 		f = CurrentFont()
-		progress = self.startProgress(u"Converting current font…")
+		progress = self.startProgress(u'Copying font…')
 		try:
 			convertFont(f, self.maxDistanceValue, progress)
 		except:
-			print "Unexpected error in QuadraticConverter:", sys.exc_info()[0]
+			print "Unexpected error in QuadraticConverter:", sys.exc_info()
 		progress.close()
 		self.w.close()
 
