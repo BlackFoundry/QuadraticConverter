@@ -376,8 +376,8 @@ class InterfaceWindow(BaseWindowController):
 	def draw(self, info):
 		if not self.calculatePreview:
 			return
-                if CurrentGlyph() == None:
-                    return;
+		if CurrentGlyph() == None:
+			return;
 
 		scale        = info['scale']
 		convertedGlyph = convert(CurrentGlyph().copy(), self.maxDistanceValue)
