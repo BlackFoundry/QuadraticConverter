@@ -352,14 +352,13 @@ OffColor = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.2, .8, .8, 1)
 class InterfaceWindow(BaseWindowController):
 	def __init__(self):
 		BaseWindowController.__init__(self)
-		self.maxDistanceValue = 0.600
 		self.calculatePreview = True
-		self.tempGlyph = RGlyph()
 		self.w = FloatingWindow((340, 100), 'Quadratic Converter')
 		self.w.maxDistanceTitle = TextBox((10, 10, 100, 20), "Max Distance: ")
-		minMaxDist = 0.01
+		minMaxDist  = 0.01
+		maxMaxDist  = 10.0
 		initMaxDist = 0.6
-		maxMaxDist = 10.0
+		self.maxDistanceValue = initMaxDist
 		self.w.maxDistanceValueText = TextBox((110, 10, -10, 22), str(initMaxDist))
 		self.w.maxDistanceSlider = Slider( (10, 30, -10, 20),
 				minValue=log(minMaxDist), maxValue=log(maxMaxDist),
@@ -378,12 +377,10 @@ class InterfaceWindow(BaseWindowController):
 	def draw(self, info):
 		if not self.calculatePreview:
 			return
+                if CurrentGlyph() == None:
+                    return;
+
 		scale        = info['scale']
-		doodle_glyph = info['glyph']
-
-		if doodle_glyph == None:
-			return
-
 		convertedGlyph = convert(CurrentGlyph().copy(), self.maxDistanceValue)
 
 		for c in convertedGlyph:
@@ -395,8 +392,6 @@ class InterfaceWindow(BaseWindowController):
 					color = OnColor
 					r = 6*scale
 				self.drawDiscAtPoint(r, p.x, p.y, color)
-		self.tempGlyph.clear()
-		self.tempGlyph.appendGlyph(doodle_glyph)
 		save()
 		stroke(0.2, .8, .8, 1)
 		fill(None)
