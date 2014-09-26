@@ -242,11 +242,11 @@ def getFirstOnPoint(contour):
 def convert(glyph, maxDistance):
 	nbPoints = 0
 	def lineto(pen, p):
-		pen.addPoint(p, 'line')
-	def curveto(pen,(a,b,c)):
-		pen.addPoint(a)
-		pen.addPoint(b)
-		pen.addPoint(c, 'qcurve', True)
+		pen.addPoint((p.x, p.y), 'line')
+	def curveto(pen, (a, b, c)):
+		pen.addPoint((a.x, a.y))
+		pen.addPoint((b.x, b.y))
+		pen.addPoint((c.x, c.y), 'qcurve', True)
 	conts = []
 	glyph.extremePoints()
 	for contour in glyph:
@@ -259,7 +259,7 @@ def convert(glyph, maxDistance):
 			seg = contour[s]
 			if seg.type == 'line':
 				p1 = seg.points[0]
-				cmds.append((lineto, (p1.x, p1.y)))
+				cmds.append((lineto, p1))
 				nbPoints += 1
 				p0 = p1
 			elif seg.type == 'qCurve':
@@ -278,14 +278,16 @@ def convert(glyph, maxDistance):
 							for c in adaptiveCubicSplit(cubicSegment, maxDistance)]
 				else:
 					for cubic in splitCubicOnInflection(cubicSegment):
-						subs = adaptiveSmoothCubicSplit(cubic, maxDistance)
 						qsegs = qsegs + [uniqueQuadraticWithSameTangentsAsCubic(c)
-						for c in subs]
+							for c in adaptiveSmoothCubicSplit(cubic, maxDistance)]
 				for qseg in qsegs:
-					subs = splitQuadratic(0.5, qseg)
-					a0, a1, a2 = subs[0]
-					a3, a4, a5 = subs[1]
-					cmds.append((curveto, ((a1.x, a1.y), (a4.x, a4.y), (a5.x, a5.y))))
+					# We have to split the qCurve because Robofont does not (seem to) support
+					# ON-OFF-ON quadratic bezier curves. If ever Robofont can handle this,
+					# then it would suffice to write something like:
+					#	(a0, a1, a2) = qseg
+					#	cmds.append((curveto, (a1, a2)))
+					((a0, a1, a2), (a3, a4, a5)) = splitQuadratic(0.5, qseg)
+					cmds.append((curveto, (a1, a4, a5)))
 					nbPoints += 3
 				p0 = p3
 			else:
