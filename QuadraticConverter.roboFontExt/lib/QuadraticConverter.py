@@ -248,7 +248,7 @@ def convert(glyph, maxDistance):
 		pen.addPoint((b.x, b.y))
 		pen.addPoint((c.x, c.y), 'qcurve', True)
 	conts = []
-	glyph.extremePoints()
+	#glyph.extremePoints()
 	for contour in glyph:
 		conts.append([])
 		cmds = conts[-1]
