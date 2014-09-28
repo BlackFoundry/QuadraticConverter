@@ -17,7 +17,7 @@ from AppKit import *
 from mojo.drawingTools import drawGlyph, save, restore, stroke, fill, strokeWidth
 from mojo.UI import UpdateCurrentGlyphView
 from os import path as ospath
-import sys, tempfile
+import sys, tempfile, shutil
 
 class Point(object):
 	__slots__ = ('x', 'y')
@@ -137,6 +137,15 @@ def splitCubicOnInflection(cubic):
 	cub1, cub2 = splitCubic(t2, tempcubic)
 	return [cub0, cub1, cub2]
 
+def lengthOfCubic(cubic, err = 1.0):
+	(p0,p1,p2,p3) = cubic
+	l03 = (p0-p3).length()
+	l0123 = (p0-p1).length() + (p1-p2).length() + (p2-p3).length()
+	if abs(l03-l0123) < err:
+		return 0.5 * (l03+l0123)
+	a, b = splitCubic(0.5, cubic)
+	return lengthOfCubic(a, 0.5*err) + lengthOfCubic(b, 0.5*err)
+
 def quadraticMidPointApprox((p1, c1, c2, p2)):
 	"""Returns the midpoint quadratic approximation of a cubic Bezier, disregarding the quality of approximation."""
 	#d0 = 0.5 * ((3.0 * c1) - p1)
@@ -167,7 +176,7 @@ def uniqueQuadraticWithSameTangentsAsCubic((a, b, c, d)):
 	x = a + ( t * ab )
 	return (a, x, d)
 
-def adaptiveConvexCubicSplit(cubic, dmax):
+def adaptiveConvexCubicSplit(cubic, dmax, maxLength):
 	"""Returns an approximation of a cubic Bezier as a list of quadratic Bezier.
 
 	Assumes the cubic curve has no inflection point.
@@ -186,22 +195,29 @@ def adaptiveConvexCubicSplit(cubic, dmax):
 		return [cubic] # should not happen but just in case
 	if t >= 0.5:
 		c1, c2 = splitCubic(0.5, cubic)
+		if lengthOfCubic(c1) < maxLength: return [cubic]
+		if lengthOfCubic(c2) < maxLength: return [cubic]
 		return [c1, c2]
 	#print "adaptive split at", t, (1.0-t)
 	cub0, tempcubic = splitCubic(t, cubic)
 	t2 = (1.0 - t - t) / (1.0 - t)
 	cub1, cub2 = splitCubic(t2, tempcubic)
 	(m0, m1, m2, m3) = cub1
-	if (m0 - m3).length() < 30:
+	if (m0 - m3).length() < maxLength:
 		c1, c2 = splitCubic(0.5, cubic)
-		return adaptiveConvexCubicSplit(c1, dmax) + adaptiveConvexCubicSplit(c2, dmax)
-	return [cub0] + adaptiveConvexCubicSplit(cub1, dmax) + [cub2]
+		if lengthOfCubic(c1) < maxLength: return [cubic]
+		if lengthOfCubic(c2) < maxLength: return [cubic]
+		return adaptiveConvexCubicSplit(c1, dmax, maxLength) + adaptiveConvexCubicSplit(c2, dmax, maxLength)
+	if lengthOfCubic(cub0) < maxLength: return [cubic]
+	if lengthOfCubic(cub2) < maxLength: return [cubic]
+	return [cub0] + adaptiveConvexCubicSplit(cub1, dmax, maxLength) + [cub2]
 
-def adaptiveCubicSplit(cubic, dmax):
+def adaptiveCubicSplit(cubic, dmax, maxLength):
 	"""Returns an approximation of a cubic Bezier as a list of quadratic Bezier."""
-	return sum([adaptiveConvexCubicSplit(c, dmax) for c in splitCubicOnInflection(cubic)], [])
+	return sum([adaptiveConvexCubicSplit(c, dmax, maxLength) for c in splitCubicOnInflection(cubic)], [])
 
-def hasGoodSmoothQuadraticApprox(cubic, dmax):
+def hasGoodSmoothQuadraticApprox(cubic, dmax, maxLength):
+	if lengthOfCubic(cubic) < maxLength: return True
 	(p1, c1, c2, p2) = cubic
 	scaleddmax = dmax * 10.3923048454132637612
 	d0 = 0.5 * ((3.0 * c1) - p1)
@@ -217,16 +233,16 @@ def hasGoodSmoothQuadraticApprox(cubic, dmax):
 	v = (1.0/l) * v
 	return abs(det2x2(A - B, v)) <= 2.0 * dmax
 
-def oneHasBadApprox(cubics, dmax):
+def oneHasBadApprox(cubics, dmax, maxLength):
 	for c in cubics:
-		if not hasGoodSmoothQuadraticApprox(c, dmax):
+		if not hasGoodSmoothQuadraticApprox(c, dmax, maxLength):
 			return True
 	return False
 
-def adaptiveSmoothCubicSplit(cubic, dmax):
+def adaptiveSmoothCubicSplit(cubic, dmax, maxLength):
 	n = 1
 	cubics = [cubic]
-	while (n < 10) and oneHasBadApprox(cubics, dmax):
+	while (n < 10) and oneHasBadApprox(cubics, dmax, maxLength):
 		n += 1
 		cubics = simpleSplitCubic(cubic, n)
 	return cubics
@@ -239,7 +255,7 @@ def getFirstOnPoint(contour):
 		return firstSeg.points[0]
 	return contour[-1].points[-1]
 
-def convert(glyph, maxDistance):
+def convert(glyph, maxDistance, maxLength):
 	nbPoints = 0
 	def lineto(pen, p):
 		pen.addPoint((p.x, p.y), 'line')
@@ -275,11 +291,11 @@ def convert(glyph, maxDistance):
 				qsegs = []
 				if seg.smooth == False and prevSeg.smooth == False:
 					qsegs = [quadraticMidPointApprox(c)
-							for c in adaptiveCubicSplit(cubicSegment, maxDistance)]
+							for c in adaptiveCubicSplit(cubicSegment, maxDistance, maxLength)]
 				else:
 					for cubic in splitCubicOnInflection(cubicSegment):
 						qsegs = qsegs + [uniqueQuadraticWithSameTangentsAsCubic(c)
-							for c in adaptiveSmoothCubicSplit(cubic, maxDistance)]
+							for c in adaptiveSmoothCubicSplit(cubic, maxDistance, maxLength)]
 				for qseg in qsegs:
 					# We have to split the qCurve because Robofont does not (seem to) support
 					# ON-OFF-ON quadratic bezier curves. If ever Robofont can handle this,
@@ -306,27 +322,34 @@ def convert(glyph, maxDistance):
 		pen.endPath()
 	return glyph
 
-def convertFont(f, maxDistanceValue, progressBar):
+def convertFont(f, maxDistanceValue, maxLengthValue, progressBar):
 	if f == None:
-		return
+		return False
+	import robofab.interface.all.dialogs as Dialogs
 	if f.path != None:
 		root, tail = ospath.split(f.path)
-		name, ext = os.path.splitext(tail)
+		name, ext = ospath.splitext(tail)
 		tail = 'Quadratic_' + name + '.ufo'
 		quadPath = ospath.join(root, tail)
-		f.save(quadPath)
-		nf = RFont(quadPath)
+		if ospath.exists(quadPath):
+			ret = Dialogs.AskYesNoCancel('The UFO "'+quadPath+'" already exists.\nShall we overwrite?',
+					default=1) # default value is not taken into account :-(
+			if ret != 1: return False
+		shutil.rmtree(quadPath)
+		shutil.copytree(f.path, quadPath)
+		nf = RFont(quadPath, showUI=False)
 	else:
-		import robofab.interface.all.dialogs as Dialogs
-		Dialogs.Message("Please save your file as a UFO first.")
-		return
-		temp = tempfile.NamedTemporaryFile(delete=True)
-		name = f.info.postscriptFontName
-		if name == '' or name == None:
-			name = 'temp'
-		quadPath = ospath.join(temp.name, 'Quadratic_' + name + '.ufo')
-		temp.close()
-		nf = f.copy()
+		ret = Dialogs.AskYesNoCancel("The font will be modified in place.\nThen you can save it in the UFO format.\nShall we proceed?",
+				default=1) # default value is not taken into account :-(
+		if ret != 1: return False
+		nf = f
+		#temp = tempfile.NamedTemporaryFile(delete=True)
+		#name = f.info.postscriptFontName
+		#if name == '' or name == None:
+		#	name = 'temp'
+		#quadPath = ospath.join(temp.name, 'Quadratic_' + name + '.ufo')
+		#temp.close()
+		#nf = f.copy()
 	nf.lib['com.typemytype.robofont.segmentType'] = 'qCurve'
 	componentGlyphs = []
 	progressBar.setTickCount((len(nf)+9)/10 + 2)
@@ -339,18 +362,21 @@ def convertFont(f, maxDistanceValue, progressBar):
 		if len(g.components) > 0:
 			componentGlyphs.append(g)
 			if len(g) > 0:
-				print "Warning: glyph '"+g.name+"' has", len(g.components), "components and", len(g), "contours."
+				print "WARNING: glyph '"+g.name+"' has", len(g.components), "components and", len(g), "contours."
 		else:
-			convert(g, maxDistanceValue)
+			convert(g, maxDistanceValue, maxLengthValue)
 			count = progress(count)
 	for g in componentGlyphs:
 		for component in g.components:
 			nf[g.name].components.append(component)
 		count = progress(count)
-	#progressBar.update(text=u'Saving, then opening…')
-	nf.update()
-	#nf.save(quadPath)
-	#OpenFont(quadPath)
+	if f.path != None:
+		progressBar.update(text=u'Saving, then opening…')
+		nf.save()
+		OpenFont(quadPath)
+	else:
+		nf.update()
+	return True
 
 # - - - - - - - - - - - - - - - - -
 
@@ -361,18 +387,37 @@ class InterfaceWindow(BaseWindowController):
 	def __init__(self):
 		BaseWindowController.__init__(self)
 		self.calculatePreview = True
-		self.w = FloatingWindow((340, 100), 'Quadratic Converter')
-		self.w.maxDistanceTitle = TextBox((10, 10, 100, 20), "Max Distance: ")
+		self.w = FloatingWindow((340, 180), 'Quadratic Converter')
+		# ---------------------------
+		top = 10
+		self.w.maxDistanceTitle = TextBox((10, top, 100, 20), "Max Distance: ")
 		minMaxDist  = 0.01
 		maxMaxDist  = 10.0
 		initMaxDist = 0.6
 		self.maxDistanceValue = initMaxDist
-		self.w.maxDistanceValueText = TextBox((110, 10, -10, 22), str(initMaxDist))
-		self.w.maxDistanceSlider = Slider( (10, 30, -10, 20),
+		self.w.maxDistanceValueText = TextBox((110, top, -10, 22), str(initMaxDist))
+		self.w.maxDistanceSlider = Slider( (10, top+20, -10, 20),
 				minValue=log(minMaxDist), maxValue=log(maxMaxDist),
 				value=log(initMaxDist), callback=self.maxDistanceSliderCallback )
-		self.w.previewCheckBox = CheckBox((10, 60, 70, 20), "Preview", callback=self.previewCheckBoxCallback, value=True)
-		self.w.convertCurrentFont = Button((210, 60, 120, 20), "Convert Font", callback=self.convertCurrentFontCallback)
+		# ---------------------------
+		top = 60
+		self.w.maxLengthTitle = TextBox((10, top, 150, 20), "Max Segment Length: ")
+		minMaxLen  = 0
+		maxMaxLen  = 100
+		initMaxLen = 30
+		self.maxLengthValue = initMaxLen
+		self.w.maxLengthValueText = TextBox((160, top, -10, 22), str(initMaxLen))
+		self.w.maxLengthSlider = Slider( (10, top+20, -10, 20),
+				minValue=minMaxLen, maxValue=maxMaxLen,
+				value=initMaxLen, callback=self.maxLengthSliderCallback )
+		# ---------------------------
+		top = 110
+		self.w.previewCheckBox = CheckBox((10, top, 70, 20), "Preview", callback=self.previewCheckBoxCallback, value=True)
+		self.w.closeButton = Button((120, top, 70, 20), "Close", callback=self.closeCallBack)
+		self.w.convertCurrentFont = Button((210, top, 120, 20), "Convert Font", callback=self.convertCurrentFontCallback)
+		# ---------------------------
+		self.w.infoText = TextBox((10, -38, -10, 34), "WARNING. Un-saved modifications in a UFO will not be converted.")
+		# ---------------------------
 		self.w.open()
 		self.w.bind("close", self.windowClosed)
 		addObserver(self, "draw", "draw")
@@ -389,7 +434,7 @@ class InterfaceWindow(BaseWindowController):
 			return;
 
 		scale        = info['scale']
-		convertedGlyph = convert(CurrentGlyph().copy(), self.maxDistanceValue)
+		convertedGlyph = convert(CurrentGlyph().copy(), self.maxDistanceValue, self.maxLengthValue)
 
 		for c in convertedGlyph:
 			for p in c.points:
@@ -416,6 +461,11 @@ class InterfaceWindow(BaseWindowController):
 		self.w.maxDistanceValueText.set(self.maxDistanceValue)
 		UpdateCurrentGlyphView()
 
+	def maxLengthSliderCallback(self, sender):
+		self.maxLengthValue = int(round(sender.get(), 0))
+		self.w.maxLengthValueText.set(self.maxLengthValue)
+		UpdateCurrentGlyphView()
+
 	def previewCheckBoxCallback(self, sender):
 		self.calculatePreview = sender.get()
 		UpdateCurrentGlyphView()
@@ -426,11 +476,16 @@ class InterfaceWindow(BaseWindowController):
 	def convertCurrentFontCallback(self, sender):
 		f = CurrentFont()
 		progress = self.startProgress(u'Copying font…')
+		closeWindow = False
 		try:
-			convertFont(f, self.maxDistanceValue, progress)
+			closeWindow = convertFont(f, self.maxDistanceValue, self.maxLengthValue, progress)
 		except:
 			print "Unexpected error in QuadraticConverter:", sys.exc_info()
 		progress.close()
+		if closeWindow:
+			self.w.close()
+	
+	def closeCallBack(self, sender):
 		self.w.close()
 
 InterfaceWindow()
