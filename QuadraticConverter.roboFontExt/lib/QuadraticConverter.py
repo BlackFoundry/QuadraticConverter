@@ -262,10 +262,10 @@ def convert(glyph, maxDistance, minLength):
 	nbPoints = 0
 	def lineto(pen, p):
 		pen.addPoint((p.x, p.y), 'line')
-	def addoff(pen, p):
-		pen.addPoint((p.x, p.y))
-	def curveto(pen, p):
-		pen.addPoint((p.x, p.y), 'qcurve', True)
+	def curveto(pen, (a, b, c)):
+		pen.addPoint((a.x, a.y))
+		pen.addPoint((b.x, b.y))
+		pen.addPoint((c.x, c.y), 'qcurve', True)
 	conts = []
 	for contour in glyph:
 		conts.append([])
@@ -305,9 +305,7 @@ def convert(glyph, maxDistance, minLength):
 					#	(a0, a1, a2) = qseg
 					#	cmds.append((curveto, (a1, a2)))
 					((a0, a1, a2), (a3, a4, a5)) = splitQuadratic(0.5, qseg)
-					cmds.append((addoff, a1))
-					cmds.append((addoff, a4))
-					cmds.append((curveto, a5))
+					cmds.append((curveto, (a1, a4, a5)))
 					nbPoints += 3
 				p0 = p3
 			else:
@@ -324,14 +322,14 @@ def convert(glyph, maxDistance, minLength):
 			action, args = cmd
 			action(pen, args)
 		pen.endPath()
+	# Now, we make sure that each contour starts with a ON control point
 	for contour in glyph:
 		start = 0
-		ok = False
 		pts = contour.points
-		while not ok:
-			if pts[start].type != 'bcp': ok = True
-			else: start += 1
-		contour.points[:] = pts[start:]+pts[:start]
+		while pts[start].type == 'bcp':
+			start += 1
+		if start > 0:
+			contour.points[:] = pts[start:]+pts[:start]
 	return glyph
 
 def convertFont(f, maxDistanceValue, minLengthValue, progressBar):
@@ -347,7 +345,7 @@ def convertFont(f, maxDistanceValue, minLengthValue, progressBar):
 			ret = Dialogs.AskYesNoCancel('The UFO "'+quadPath+'" already exists.\nShall we overwrite?',
 					default=1) # default value is not taken into account :-(
 			if ret != 1: return False
-		shutil.rmtree(quadPath)
+			shutil.rmtree(quadPath)
 		shutil.copytree(f.path, quadPath)
 		nf = RFont(quadPath, showUI=False)
 	else:
