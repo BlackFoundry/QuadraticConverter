@@ -252,6 +252,18 @@ def adaptiveSmoothCubicSplit(cubic, dmax, minLength):
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+def printContour(c):
+	n = 0
+	pts = c.points
+	print "======================="
+	for seg in c:
+		s = '*'
+		for p in seg.points:
+			p1 = pts[n]
+			n += 1
+			print s, p.type, int(p.x), int(p.y), "\t\t", p1.type, int(p1.x), int(p1.y), (type(p.type))
+			s = ''
+
 def getFirstOnPoint(contour):
 	firstSeg = contour[0]
 	if firstSeg.type == 'line':
@@ -262,10 +274,10 @@ def convert(glyph, maxDistance, minLength):
 	nbPoints = 0
 	def lineto(pen, p):
 		pen.addPoint((p.x, p.y), 'line')
-	def curveto(pen, (a, b, c)):
-		pen.addPoint((a.x, a.y))
-		pen.addPoint((b.x, b.y))
-		pen.addPoint((c.x, c.y), 'qcurve', True)
+	def addoff(pen, p):
+		pen.addPoint((p.x, p.y))
+	def curveto(pen, p):
+		pen.addPoint((p.x, p.y), 'qcurve', True)
 	conts = []
 	for contour in glyph:
 		conts.append([])
@@ -305,7 +317,9 @@ def convert(glyph, maxDistance, minLength):
 					#	(a0, a1, a2) = qseg
 					#	cmds.append((curveto, (a1, a2)))
 					((a0, a1, a2), (a3, a4, a5)) = splitQuadratic(0.5, qseg)
-					cmds.append((curveto, (a1, a4, a5)))
+					cmds.append((addoff, a1))
+					cmds.append((addoff, a4))
+					cmds.append((curveto, a5))
 					nbPoints += 3
 				p0 = p3
 			else:
@@ -324,12 +338,8 @@ def convert(glyph, maxDistance, minLength):
 		pen.endPath()
 	# Now, we make sure that each contour starts with a ON control point
 	for contour in glyph:
-		start = 0
-		pts = contour.points
-		while pts[start].type == 'bcp':
-			start += 1
-		if start > 0:
-			contour.points[:] = pts[start:]+pts[:start]
+		contour.autoStartSegment()
+	glyph.update()
 	return glyph
 
 def convertFont(f, maxDistanceValue, minLengthValue, progressBar):
