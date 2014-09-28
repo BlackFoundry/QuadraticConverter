@@ -1,6 +1,14 @@
-QuadraticConverter
-==========
+## QuadraticConverter
 
-Extension for RoboFont<br>
+### Extension for RoboFont
 
-<b>- QuadraticConverter:</b>  Extension that converts Cubic (PostScript) UFO to Quadratic (TrueType) UFO.
+**QuadraticConverter** is an extension for RoboFont that converts Cubic (PostScript) UFO to Quadratic (TrueType) UFO.
+
+## Changes
+
+- **0.5.5**
+  - The contours are correctly orderer for the hinting to perform correctly.
+- **0.5.4**
+  - Converting a UFO will create a new UFO. Converting a non-UFO modifies it in place.
+  - In any case, the original contour is saved in the layer *Cubic contour*.
+  - New control for the minimum length of a quadratic segment.
