@@ -262,12 +262,11 @@ def convert(glyph, maxDistance, minLength):
 	nbPoints = 0
 	def lineto(pen, p):
 		pen.addPoint((p.x, p.y), 'line')
-	def curveto(pen, (a, b, c)):
-		pen.addPoint((a.x, a.y))
-		pen.addPoint((b.x, b.y))
-		pen.addPoint((c.x, c.y), 'qcurve', True)
+	def addoff(pen, p):
+		pen.addPoint((p.x, p.y))
+	def curveto(pen, p):
+		pen.addPoint((p.x, p.y), 'qcurve', True)
 	conts = []
-	#glyph.extremePoints()
 	for contour in glyph:
 		conts.append([])
 		cmds = conts[-1]
@@ -306,7 +305,9 @@ def convert(glyph, maxDistance, minLength):
 					#	(a0, a1, a2) = qseg
 					#	cmds.append((curveto, (a1, a2)))
 					((a0, a1, a2), (a3, a4, a5)) = splitQuadratic(0.5, qseg)
-					cmds.append((curveto, (a1, a4, a5)))
+					cmds.append((addoff, a1))
+					cmds.append((addoff, a4))
+					cmds.append((curveto, a5))
 					nbPoints += 3
 				p0 = p3
 			else:
@@ -323,6 +324,14 @@ def convert(glyph, maxDistance, minLength):
 			action, args = cmd
 			action(pen, args)
 		pen.endPath()
+	for contour in glyph:
+		start = 0
+		ok = False
+		pts = contour.points
+		while not ok:
+			if pts[start].type != 'bcp': ok = True
+			else: start += 1
+		contour.points[:] = pts[start:]+pts[:start]
 	return glyph
 
 def convertFont(f, maxDistanceValue, minLengthValue, progressBar):
@@ -372,7 +381,7 @@ def convertFont(f, maxDistanceValue, minLengthValue, progressBar):
 	if f.path != None:
 		progressBar.update(text=u'Saving, then opening…')
 		nf.save()
-		OpenFont(quadPath)
+		OpenFont(quadPath, showUI=True)
 	else:
 		nf.update()
 	return True
