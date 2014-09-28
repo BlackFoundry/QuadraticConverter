@@ -176,7 +176,7 @@ def uniqueQuadraticWithSameTangentsAsCubic((a, b, c, d)):
 	x = a + ( t * ab )
 	return (a, x, d)
 
-def adaptiveConvexCubicSplit(cubic, dmax, maxLength):
+def adaptiveConvexCubicSplit(cubic, dmax, minLength):
 	"""Returns an approximation of a cubic Bezier as a list of quadratic Bezier.
 
 	Assumes the cubic curve has no inflection point.
@@ -195,29 +195,32 @@ def adaptiveConvexCubicSplit(cubic, dmax, maxLength):
 		return [cubic] # should not happen but just in case
 	if t >= 0.5:
 		c1, c2 = splitCubic(0.5, cubic)
-		if lengthOfCubic(c1) < maxLength: return [cubic]
-		if lengthOfCubic(c2) < maxLength: return [cubic]
+		if (minLength > 0.0):
+			if lengthOfCubic(c1) < minLength: return [cubic]
+			if lengthOfCubic(c2) < minLength: return [cubic]
 		return [c1, c2]
 	#print "adaptive split at", t, (1.0-t)
 	cub0, tempcubic = splitCubic(t, cubic)
 	t2 = (1.0 - t - t) / (1.0 - t)
 	cub1, cub2 = splitCubic(t2, tempcubic)
 	(m0, m1, m2, m3) = cub1
-	if (m0 - m3).length() < maxLength:
+	if (m0 - m3).length() < minLength:
 		c1, c2 = splitCubic(0.5, cubic)
-		if lengthOfCubic(c1) < maxLength: return [cubic]
-		if lengthOfCubic(c2) < maxLength: return [cubic]
-		return adaptiveConvexCubicSplit(c1, dmax, maxLength) + adaptiveConvexCubicSplit(c2, dmax, maxLength)
-	if lengthOfCubic(cub0) < maxLength: return [cubic]
-	if lengthOfCubic(cub2) < maxLength: return [cubic]
-	return [cub0] + adaptiveConvexCubicSplit(cub1, dmax, maxLength) + [cub2]
+		if (minLength > 0.0):
+			if lengthOfCubic(c1) < minLength: return [cubic]
+			if lengthOfCubic(c2) < minLength: return [cubic]
+		return adaptiveConvexCubicSplit(c1, dmax, minLength) + adaptiveConvexCubicSplit(c2, dmax, minLength)
+	if (minLength > 0.0):
+		if lengthOfCubic(cub0) < minLength: return [cubic]
+		if lengthOfCubic(cub2) < minLength: return [cubic]
+	return [cub0] + adaptiveConvexCubicSplit(cub1, dmax, minLength) + [cub2]
 
-def adaptiveCubicSplit(cubic, dmax, maxLength):
+def adaptiveCubicSplit(cubic, dmax, minLength):
 	"""Returns an approximation of a cubic Bezier as a list of quadratic Bezier."""
-	return sum([adaptiveConvexCubicSplit(c, dmax, maxLength) for c in splitCubicOnInflection(cubic)], [])
+	return sum([adaptiveConvexCubicSplit(c, dmax, minLength) for c in splitCubicOnInflection(cubic)], [])
 
-def hasGoodSmoothQuadraticApprox(cubic, dmax, maxLength):
-	if lengthOfCubic(cubic) < maxLength: return True
+def hasGoodSmoothQuadraticApprox(cubic, dmax, minLength):
+	if (minLength > 0.0) and (lengthOfCubic(cubic) < minLength): return True
 	(p1, c1, c2, p2) = cubic
 	scaleddmax = dmax * 10.3923048454132637612
 	d0 = 0.5 * ((3.0 * c1) - p1)
@@ -233,16 +236,16 @@ def hasGoodSmoothQuadraticApprox(cubic, dmax, maxLength):
 	v = (1.0/l) * v
 	return abs(det2x2(A - B, v)) <= 2.0 * dmax
 
-def oneHasBadApprox(cubics, dmax, maxLength):
+def oneHasBadApprox(cubics, dmax, minLength):
 	for c in cubics:
-		if not hasGoodSmoothQuadraticApprox(c, dmax, maxLength):
+		if not hasGoodSmoothQuadraticApprox(c, dmax, minLength):
 			return True
 	return False
 
-def adaptiveSmoothCubicSplit(cubic, dmax, maxLength):
+def adaptiveSmoothCubicSplit(cubic, dmax, minLength):
 	n = 1
 	cubics = [cubic]
-	while (n < 10) and oneHasBadApprox(cubics, dmax, maxLength):
+	while (n < 10) and oneHasBadApprox(cubics, dmax, minLength):
 		n += 1
 		cubics = simpleSplitCubic(cubic, n)
 	return cubics
@@ -255,7 +258,7 @@ def getFirstOnPoint(contour):
 		return firstSeg.points[0]
 	return contour[-1].points[-1]
 
-def convert(glyph, maxDistance, maxLength):
+def convert(glyph, maxDistance, minLength):
 	nbPoints = 0
 	def lineto(pen, p):
 		pen.addPoint((p.x, p.y), 'line')
@@ -291,11 +294,11 @@ def convert(glyph, maxDistance, maxLength):
 				qsegs = []
 				if seg.smooth == False and prevSeg.smooth == False:
 					qsegs = [quadraticMidPointApprox(c)
-							for c in adaptiveCubicSplit(cubicSegment, maxDistance, maxLength)]
+							for c in adaptiveCubicSplit(cubicSegment, maxDistance, minLength)]
 				else:
 					for cubic in splitCubicOnInflection(cubicSegment):
 						qsegs = qsegs + [uniqueQuadraticWithSameTangentsAsCubic(c)
-							for c in adaptiveSmoothCubicSplit(cubic, maxDistance, maxLength)]
+							for c in adaptiveSmoothCubicSplit(cubic, maxDistance, minLength)]
 				for qseg in qsegs:
 					# We have to split the qCurve because Robofont does not (seem to) support
 					# ON-OFF-ON quadratic bezier curves. If ever Robofont can handle this,
@@ -322,7 +325,7 @@ def convert(glyph, maxDistance, maxLength):
 		pen.endPath()
 	return glyph
 
-def convertFont(f, maxDistanceValue, maxLengthValue, progressBar):
+def convertFont(f, maxDistanceValue, minLengthValue, progressBar):
 	if f == None:
 		return False
 	import robofab.interface.all.dialogs as Dialogs
@@ -343,13 +346,6 @@ def convertFont(f, maxDistanceValue, maxLengthValue, progressBar):
 				default=1) # default value is not taken into account :-(
 		if ret != 1: return False
 		nf = f
-		#temp = tempfile.NamedTemporaryFile(delete=True)
-		#name = f.info.postscriptFontName
-		#if name == '' or name == None:
-		#	name = 'temp'
-		#quadPath = ospath.join(temp.name, 'Quadratic_' + name + '.ufo')
-		#temp.close()
-		#nf = f.copy()
 	nf.lib['com.typemytype.robofont.segmentType'] = 'qCurve'
 	componentGlyphs = []
 	progressBar.setTickCount((len(nf)+9)/10 + 2)
@@ -359,12 +355,15 @@ def convertFont(f, maxDistanceValue, maxLengthValue, progressBar):
 			progressBar.update(text=u"Converting glyphs…")
 		return count + 1
 	for g in nf:
+		layerName = "Cubic contour"
+		cubicLayer = g.getLayer(layerName, clear=True)
+		g.copyToLayer(layerName, clear=True)
 		if len(g.components) > 0:
 			componentGlyphs.append(g)
 			if len(g) > 0:
 				print "WARNING: glyph '"+g.name+"' has", len(g.components), "components and", len(g), "contours."
 		else:
-			convert(g, maxDistanceValue, maxLengthValue)
+			convert(g, maxDistanceValue, minLengthValue)
 			count = progress(count)
 	for g in componentGlyphs:
 		for component in g.components:
@@ -401,15 +400,15 @@ class InterfaceWindow(BaseWindowController):
 				value=log(initMaxDist), callback=self.maxDistanceSliderCallback )
 		# ---------------------------
 		top = 60
-		self.w.maxLengthTitle = TextBox((10, top, 150, 20), "Max Segment Length: ")
-		minMaxLen  = 0
-		maxMaxLen  = 100
-		initMaxLen = 30
-		self.maxLengthValue = initMaxLen
-		self.w.maxLengthValueText = TextBox((160, top, -10, 22), str(initMaxLen))
-		self.w.maxLengthSlider = Slider( (10, top+20, -10, 20),
-				minValue=minMaxLen, maxValue=maxMaxLen,
-				value=initMaxLen, callback=self.maxLengthSliderCallback )
+		self.w.minLengthTitle = TextBox((10, top, 150, 20), "Min Segment Length: ")
+		minMinLen  = 0
+		maxMinLen  = 100
+		initMinLen = 30
+		self.minLengthValue = initMinLen
+		self.w.minLengthValueText = TextBox((160, top, -10, 22), str(initMinLen))
+		self.w.minLengthSlider = Slider( (10, top+20, -10, 20),
+				minValue=minMinLen, maxValue=maxMinLen,
+				value=initMinLen, callback=self.minLengthSliderCallback )
 		# ---------------------------
 		top = 110
 		self.w.previewCheckBox = CheckBox((10, top, 70, 20), "Preview", callback=self.previewCheckBoxCallback, value=True)
@@ -434,7 +433,7 @@ class InterfaceWindow(BaseWindowController):
 			return;
 
 		scale        = info['scale']
-		convertedGlyph = convert(CurrentGlyph().copy(), self.maxDistanceValue, self.maxLengthValue)
+		convertedGlyph = convert(CurrentGlyph().copy(), self.maxDistanceValue, self.minLengthValue)
 
 		for c in convertedGlyph:
 			for p in c.points:
@@ -461,24 +460,21 @@ class InterfaceWindow(BaseWindowController):
 		self.w.maxDistanceValueText.set(self.maxDistanceValue)
 		UpdateCurrentGlyphView()
 
-	def maxLengthSliderCallback(self, sender):
-		self.maxLengthValue = int(round(sender.get(), 0))
-		self.w.maxLengthValueText.set(self.maxLengthValue)
+	def minLengthSliderCallback(self, sender):
+		self.minLengthValue = int(round(sender.get(), 0))
+		self.w.minLengthValueText.set(self.minLengthValue)
 		UpdateCurrentGlyphView()
 
 	def previewCheckBoxCallback(self, sender):
 		self.calculatePreview = sender.get()
 		UpdateCurrentGlyphView()
 
-	# def updateViewCallback(self, sender):
-	# 	UpdateCurrentGlyphView()
-
 	def convertCurrentFontCallback(self, sender):
 		f = CurrentFont()
 		progress = self.startProgress(u'Copying font…')
 		closeWindow = False
 		try:
-			closeWindow = convertFont(f, self.maxDistanceValue, self.maxLengthValue, progress)
+			closeWindow = convertFont(f, self.maxDistanceValue, self.minLengthValue, progress)
 		except:
 			print "Unexpected error in QuadraticConverter:", sys.exc_info()
 		progress.close()
