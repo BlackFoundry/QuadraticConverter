@@ -252,18 +252,6 @@ def adaptiveSmoothCubicSplit(cubic, dmax, minLength):
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-def printContour(c):
-	n = 0
-	pts = c.points
-	print "======================="
-	for seg in c:
-		s = '*'
-		for p in seg.points:
-			p1 = pts[n]
-			n += 1
-			print s, p.type, int(p.x), int(p.y), "\t\t", p1.type, int(p1.x), int(p1.y), (type(p.type))
-			s = ''
-
 def getFirstOnPoint(contour):
 	firstSeg = contour[0]
 	if firstSeg.type == 'line':
@@ -339,6 +327,8 @@ def convert(glyph, maxDistance, minLength):
 	# Now, we make sure that each contour starts with a ON control point
 	for contour in glyph:
 		contour.autoStartSegment()
+		# If we want a custom start segment, we should use:
+		# contour.setStartSegment(self, segmentIndex):
 	glyph.update()
 	return glyph
 
