@@ -146,6 +146,19 @@ def lengthOfCubic(cubic, err = 1.0):
 	a, b = splitCubic(0.5, cubic)
 	return lengthOfCubic(a, 0.5*err) + lengthOfCubic(b, 0.5*err)
 
+def findParamForLength(cubic, l0):
+	def aux(tleft, lleft, tright, lright):
+		rat = (l0 - lleft) / (lright - lleft)
+		guess = tleft * (1.0 - rat) + tright * rat
+		(left, right) = splitCubic(guess, cubic)
+		ll = lengthOfCubic(left, 0.1)
+		if abs(ll-l0) < 1.0:
+			return guess
+		if ll < l0:
+			return aux(guess, ll, tright, lright)
+		return aux(tleft, lleft, guess, ll)
+	return aux(0.0, 0.0, 1.0, lengthOfCubic(cubic))
+
 def quadraticMidPointApprox((p1, c1, c2, p2)):
 	"""Returns the midpoint quadratic approximation of a cubic Bezier, disregarding the quality of approximation."""
 	#d0 = 0.5 * ((3.0 * c1) - p1)
@@ -161,6 +174,16 @@ def simpleSplitCubic(cubic, n):
 	c_list[0], c_list[1] = splitCubic(1.0/n, cubic)
 	for i in range(1, n-1):
 		c_list[i], c_list[i+1] = splitCubic(1.0/(n-i), c_list[i])
+	return c_list
+
+def splitCubicAtParams(cubic, ts):
+	n = len(ts)
+	c_list = [cubic] * (n+1)
+	prev_t = 0.0
+	for i in range(n):
+		t = (ts[i] - prev_t) / (1.0 - prev_t)
+		c_list[i], c_list[i+1] = splitCubic(t, c_list[i])
+		prev_t = ts[i]
 	return c_list
 
 def uniqueQuadraticWithSameTangentsAsCubic((a, b, c, d)):
@@ -220,7 +243,7 @@ def adaptiveCubicSplit(cubic, dmax, minLength):
 	return sum([adaptiveConvexCubicSplit(c, dmax, minLength) for c in splitCubicOnInflection(cubic)], [])
 
 def hasGoodSmoothQuadraticApprox(cubic, dmax, minLength):
-	if (minLength > 0.0) and (lengthOfCubic(cubic) < minLength): return True
+	#if (minLength > 0.0) and (lengthOfCubic(cubic) < minLength): return True
 	(p1, c1, c2, p2) = cubic
 	scaleddmax = dmax * 10.3923048454132637612
 	d0 = 0.5 * ((3.0 * c1) - p1)
@@ -242,12 +265,21 @@ def oneHasBadApprox(cubics, dmax, minLength):
 			return True
 	return False
 
-def adaptiveSmoothCubicSplit(cubic, dmax, minLength):
-	n = 1
+def adaptiveSmoothCubicSplit(cubic, dmax, minLength, useArcLength):
+	l = lengthOfCubic(cubic)
 	cubics = [cubic]
-	while (n < 10) and oneHasBadApprox(cubics, dmax, minLength):
+	if minLength > 0.0:
+		maxN = min(10, int(l / minLength))
+	else:
+		maxN = 10
+	n = 1
+	while (n <= maxN) and oneHasBadApprox(cubics, dmax, minLength):
 		n += 1
-		cubics = simpleSplitCubic(cubic, n)
+		if useArcLength:
+			params = [findParamForLength(cubic, (i*l)/n) for i in range(1,n)]
+			cubics = splitCubicAtParams(cubic, params)
+		else:
+			cubics = simpleSplitCubic(cubic, n)
 	return cubics
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -258,7 +290,7 @@ def getFirstOnPoint(contour):
 		return firstSeg.points[0]
 	return contour[-1].points[-1]
 
-def convert(glyph, maxDistance, minLength):
+def convert(glyph, maxDistance, minLength, useArcLength):
 	nbPoints = 0
 	def lineto(pen, p):
 		pen.addPoint((p.x, p.y), segmentType='line',	smooth=False)
@@ -297,7 +329,7 @@ def convert(glyph, maxDistance, minLength):
 				else:
 					for cubic in splitCubicOnInflection(cubicSegment):
 						qsegs = qsegs + [uniqueQuadraticWithSameTangentsAsCubic(c)
-							for c in adaptiveSmoothCubicSplit(cubic, maxDistance, minLength)]
+							for c in adaptiveSmoothCubicSplit(cubic, maxDistance, minLength, useArcLength)]
 				for qseg in qsegs:
 					# We have to split the qCurve because Robofont does not (seem to) support
 					# ON-OFF-ON quadratic bezier curves. If ever Robofont can handle this,
@@ -331,58 +363,6 @@ def convert(glyph, maxDistance, minLength):
 	glyph.update()
 	return glyph
 
-def convertFont(f, maxDistanceValue, minLengthValue, progressBar):
-	if f == None:
-		return False
-	import robofab.interface.all.dialogs as Dialogs
-	if f.path != None:
-		root, tail = ospath.split(f.path)
-		name, ext = ospath.splitext(tail)
-		tail = 'Quadratic_' + name + '.ufo'
-		quadPath = ospath.join(root, tail)
-		if ospath.exists(quadPath):
-			ret = Dialogs.AskYesNoCancel('The UFO "'+quadPath+'" already exists.\nShall we overwrite?',
-					default=1) # default value is not taken into account :-(
-			if ret != 1: return False
-			shutil.rmtree(quadPath)
-		shutil.copytree(f.path, quadPath)
-		nf = RFont(quadPath, showUI=False)
-	else:
-		ret = Dialogs.AskYesNoCancel("The font will be modified in place.\nThen you can save it in the UFO format.\nShall we proceed?",
-				default=1) # default value is not taken into account :-(
-		if ret != 1: return False
-		nf = f
-	nf.lib['com.typemytype.robofont.segmentType'] = 'qCurve'
-	componentGlyphs = []
-	progressBar.setTickCount((len(nf)+9)/10 + 2)
-	count = 0
-	def progress(count):
-		if count % 10 == 0:
-			progressBar.update(text=u"Converting glyphs…")
-		return count + 1
-	for g in nf:
-		layerName = "Cubic contour"
-		cubicLayer = g.getLayer(layerName, clear=True)
-		g.copyToLayer(layerName, clear=True)
-		if len(g.components) > 0:
-			componentGlyphs.append(g)
-			if len(g) > 0:
-				print "WARNING: glyph '"+g.name+"' has", len(g.components), "components and", len(g), "contours."
-		else:
-			convert(g, maxDistanceValue, minLengthValue)
-			count = progress(count)
-	for g in componentGlyphs:
-		for component in g.components:
-			nf[g.name].components.append(component)
-		count = progress(count)
-	if f.path != None:
-		progressBar.update(text=u'Saving, then opening…')
-		nf.save()
-		OpenFont(quadPath, showUI=True)
-	else:
-		nf.update()
-	return True
-
 # - - - - - - - - - - - - - - - - -
 
 OnColor = NSColor.colorWithCalibratedRed_green_blue_alpha_(1, .3, .94, 1)
@@ -391,7 +371,6 @@ OffColor = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.2, .8, .8, 1)
 class InterfaceWindow(BaseWindowController):
 	def __init__(self):
 		BaseWindowController.__init__(self)
-		self.calculatePreview = True
 		self.w = FloatingWindow((340, 180), 'Quadratic Converter')
 		# ---------------------------
 		top = 10
@@ -417,7 +396,10 @@ class InterfaceWindow(BaseWindowController):
 				value=initMinLen, callback=self.minLengthSliderCallback )
 		# ---------------------------
 		top = 110
-		self.w.previewCheckBox = CheckBox((10, top, 70, 20), "Preview", callback=self.previewCheckBoxCallback, value=True)
+		self.useArcLength = False
+		self.w.arclencheckbox = CheckBox((10, top-10, 90, 20), "Arc length", callback=self.arcLengthCheckBoxCallback, value=self.useArcLength)
+		self.calculatePreview = True
+		self.w.previewCheckBox = CheckBox((10, top+10, 70, 20), "Preview", callback=self.previewCheckBoxCallback, value=self.calculatePreview)
 		self.w.closeButton = Button((120, top, 70, 20), "Close", callback=self.closeCallBack)
 		self.w.convertCurrentFont = Button((210, top, 120, 20), "Convert Font", callback=self.convertCurrentFontCallback)
 		# ---------------------------
@@ -427,6 +409,58 @@ class InterfaceWindow(BaseWindowController):
 		self.w.bind("close", self.windowClosed)
 		addObserver(self, "draw", "draw")
 		UpdateCurrentGlyphView()
+
+	def convertFont(f, progressBar):
+		if f == None:
+			return False
+		import robofab.interface.all.dialogs as Dialogs
+		if f.path != None:
+			root, tail = ospath.split(f.path)
+			name, ext = ospath.splitext(tail)
+			tail = 'Quadratic_' + name + '.ufo'
+			quadPath = ospath.join(root, tail)
+			if ospath.exists(quadPath):
+				ret = Dialogs.AskYesNoCancel('The UFO "'+quadPath+'" already exists.\nShall we overwrite?',
+						default=1) # default value is not taken into account :-(
+				if ret != 1: return False
+				shutil.rmtree(quadPath)
+			shutil.copytree(f.path, quadPath)
+			nf = RFont(quadPath, showUI=False)
+		else:
+			ret = Dialogs.AskYesNoCancel("The font will be modified in place.\nThen you can save it in the UFO format.\nShall we proceed?",
+					default=1) # default value is not taken into account :-(
+			if ret != 1: return False
+			nf = f
+		nf.lib['com.typemytype.robofont.segmentType'] = 'qCurve'
+		componentGlyphs = []
+		progressBar.setTickCount((len(nf)+9)/10 + 2)
+		count = 0
+		def progress(count):
+			if count % 10 == 0:
+				progressBar.update(text=u"Converting glyphs…")
+			return count + 1
+		for g in nf:
+			layerName = "Cubic contour"
+			cubicLayer = g.getLayer(layerName, clear=True)
+			g.copyToLayer(layerName, clear=True)
+			if len(g.components) > 0:
+				componentGlyphs.append(g)
+				if len(g) > 0:
+					print "WARNING: glyph '"+g.name+"' has", len(g.components), "components and", len(g), "contours."
+			else:
+				convert(g, self.maxDistanceValue, self.minLengthValue, self.useArcLength)
+				count = progress(count)
+		for g in componentGlyphs:
+			for component in g.components:
+				nf[g.name].components.append(component)
+			count = progress(count)
+		if f.path != None:
+			progressBar.update(text=u'Saving, then opening…')
+			nf.save()
+			OpenFont(quadPath, showUI=True)
+		else:
+			nf.update()
+		return True
 
 	def drawDiscAtPoint(self, r, x, y, color):
 		color.set()
@@ -439,7 +473,7 @@ class InterfaceWindow(BaseWindowController):
 			return;
 
 		scale        = info['scale']
-		convertedGlyph = convert(CurrentGlyph().copy(), self.maxDistanceValue, self.minLengthValue)
+		convertedGlyph = convert(CurrentGlyph().copy(), self.maxDistanceValue, self.minLengthValue, self.useArcLength)
 
 		for c in convertedGlyph:
 			for p in c.points:
@@ -471,6 +505,10 @@ class InterfaceWindow(BaseWindowController):
 		self.w.minLengthValueText.set(self.minLengthValue)
 		UpdateCurrentGlyphView()
 
+	def arcLengthCheckBoxCallback(self, sender):
+		self.useArcLength = sender.get()
+		UpdateCurrentGlyphView()
+
 	def previewCheckBoxCallback(self, sender):
 		self.calculatePreview = sender.get()
 		UpdateCurrentGlyphView()
@@ -480,7 +518,7 @@ class InterfaceWindow(BaseWindowController):
 		progress = self.startProgress(u'Copying font…')
 		closeWindow = False
 		try:
-			closeWindow = convertFont(f, self.maxDistanceValue, self.minLengthValue, progress)
+			closeWindow = self.convertFont(f, progress)
 		except:
 			print "Unexpected error in QuadraticConverter:", sys.exc_info()
 		progress.close()
