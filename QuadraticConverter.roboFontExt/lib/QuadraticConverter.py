@@ -261,11 +261,11 @@ def getFirstOnPoint(contour):
 def convert(glyph, maxDistance, minLength):
 	nbPoints = 0
 	def lineto(pen, p):
-		pen.addPoint((p.x, p.y), 'line')
+		pen.addPoint((p.x, p.y), segmentType='line',	smooth=False)
 	def addoff(pen, p):
-		pen.addPoint((p.x, p.y))
+		pen.addPoint((p.x, p.y), segmentType=None,	smooth=False)
 	def curveto(pen, p):
-		pen.addPoint((p.x, p.y), 'qcurve', True)
+		pen.addPoint((p.x, p.y), segmentType='qcurve',	smooth=True)
 	conts = []
 	for contour in glyph:
 		conts.append([])
@@ -320,8 +320,7 @@ def convert(glyph, maxDistance, minLength):
 	pen = ReverseContourPointPen(glyph.getPointPen())
 	for cmds in conts:
 		pen.beginPath()
-		for cmd in cmds:
-			action, args = cmd
+		for action, args in cmds:
 			action(pen, args)
 		pen.endPath()
 	# Now, we make sure that each contour starts with a ON control point
