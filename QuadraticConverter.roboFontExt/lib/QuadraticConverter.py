@@ -410,7 +410,7 @@ class InterfaceWindow(BaseWindowController):
 		addObserver(self, "draw", "draw")
 		UpdateCurrentGlyphView()
 
-	def convertFont(f, progressBar):
+	def convertFont(self, f, progressBar):
 		if f == None:
 			return False
 		import robofab.interface.all.dialogs as Dialogs
