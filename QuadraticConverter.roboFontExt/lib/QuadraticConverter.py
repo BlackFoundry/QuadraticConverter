@@ -312,7 +312,7 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 				cmds.append((lineto, p1))
 				nbPoints += 1
 				p0 = p1
-			elif seg.type == 'qCurve':
+			elif seg.type == 'qcurve':
 				print "Should not have quadratic segment in here. Skipping."
 				p0 = seg.points[-1]
 			elif seg.type == 'curve':
@@ -331,7 +331,7 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 						qsegs = qsegs + [uniqueQuadraticWithSameTangentsAsCubic(c)
 							for c in adaptiveSmoothCubicSplit(cubic, maxDistance, minLength, useArcLength)]
 				for qseg in qsegs:
-					# We have to split the qCurve because Robofont does not (seem to) support
+					# We have to split the quad segment because Robofont does not (seem to) support
 					# ON-OFF-ON quadratic bezier curves. If ever Robofont can handle this,
 					# then it would suffice to write something like:
 					#	(a0, a1, a2) = qseg
@@ -432,7 +432,6 @@ class InterfaceWindow(BaseWindowController):
 			if ret != 1: return False
 			nf = f
 		nf.lib['com.typemytype.robofont.segmentType'] = 'qCurve'
-		#componentGlyphs = []
 		progressBar.setTickCount((len(nf)+9)/10 + 2)
 		count = 0
 		def progress(count):
@@ -444,14 +443,10 @@ class InterfaceWindow(BaseWindowController):
 			cubicLayer = g.getLayer(layerName, clear=True)
 			g.copyToLayer(layerName, clear=True)
 			if len(g.components) > 0:
-				#componentGlyphs.append((g.name, g.components))
 				if len(g) > 0:
 					print "WARNING: glyph '"+g.name+"' has", len(g.components), "components and", len(g), "contours."
 			convert(g, self.maxDistanceValue, self.minLengthValue, self.useArcLength)
 			count = progress(count)
-		#for name, comps in componentGlyphs:
-		#	for component in comps:
-		#		nf[name].components.append(component)
 		if f.path != None:
 			progressBar.update(text=u'Saving, then opening…')
 			nf.save()
