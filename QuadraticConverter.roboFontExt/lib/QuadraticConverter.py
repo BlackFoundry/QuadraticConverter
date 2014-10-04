@@ -432,7 +432,6 @@ class InterfaceWindow(BaseWindowController):
 			if ret != 1: return False
 			nf = f
 		nf.lib['com.typemytype.robofont.segmentType'] = 'qCurve'
-		componentGlyphs = []
 		progressBar.setTickCount((len(nf)+9)/10 + 2)
 		count = 0
 		def progress(count):
@@ -444,15 +443,11 @@ class InterfaceWindow(BaseWindowController):
 			cubicLayer = g.getLayer(layerName, clear=True)
 			g.copyToLayer(layerName, clear=True)
 			if len(g.components) > 0:
-				componentGlyphs.append(g)
+				for component in g.components:
+					nf[g.name].components.append(component)
 				if len(g) > 0:
 					print "WARNING: glyph '"+g.name+"' has", len(g.components), "components and", len(g), "contours."
-			else:
-				convert(g, self.maxDistanceValue, self.minLengthValue, self.useArcLength)
-				count = progress(count)
-		for g in componentGlyphs:
-			for component in g.components:
-				nf[g.name].components.append(component)
+			convert(g, self.maxDistanceValue, self.minLengthValue, self.useArcLength)
 			count = progress(count)
 		if f.path != None:
 			progressBar.update(text=u'Saving, then opening…')
