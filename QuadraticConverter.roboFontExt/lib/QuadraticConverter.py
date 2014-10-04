@@ -396,7 +396,7 @@ class InterfaceWindow(BaseWindowController):
 				value=initMinLen, callback=self.minLengthSliderCallback )
 		# ---------------------------
 		top = 110
-		self.useArcLength = False
+		self.useArcLength = True
 		self.w.arclencheckbox = CheckBox((10, top-10, 90, 20), "Arc length", callback=self.arcLengthCheckBoxCallback, value=self.useArcLength)
 		self.calculatePreview = True
 		self.w.previewCheckBox = CheckBox((10, top+10, 70, 20), "Preview", callback=self.previewCheckBoxCallback, value=self.calculatePreview)
