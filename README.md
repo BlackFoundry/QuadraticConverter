@@ -6,6 +6,8 @@
 
 ## Changes
 
+- **0.5.6**
+  - Added option to subdivide the smooth segments by arc-length (enabled by default)
 - **0.5.5**
   - The contours are correctly orderer for the hinting to perform correctly.
 - **0.5.4**
