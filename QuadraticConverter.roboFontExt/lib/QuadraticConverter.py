@@ -346,7 +346,7 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 				print "Unknown segment type: "+seg.type+". Skipping."
 				p0 = seg.points[-1]
 			prevSeg = seg
-	glyph.clear()
+	glyph.clearContours()
 	glyph.width = glyph.width
 	glyph.preferredSegmentStyle = 'qcurve'
 	pen = ReverseContourPointPen(glyph.getPointPen())
@@ -432,6 +432,7 @@ class InterfaceWindow(BaseWindowController):
 			if ret != 1: return False
 			nf = f
 		nf.lib['com.typemytype.robofont.segmentType'] = 'qCurve'
+		#componentGlyphs = []
 		progressBar.setTickCount((len(nf)+9)/10 + 2)
 		count = 0
 		def progress(count):
@@ -443,12 +444,14 @@ class InterfaceWindow(BaseWindowController):
 			cubicLayer = g.getLayer(layerName, clear=True)
 			g.copyToLayer(layerName, clear=True)
 			if len(g.components) > 0:
-				for component in g.components:
-					nf[g.name].components.append(component)
+				#componentGlyphs.append((g.name, g.components))
 				if len(g) > 0:
 					print "WARNING: glyph '"+g.name+"' has", len(g.components), "components and", len(g), "contours."
 			convert(g, self.maxDistanceValue, self.minLengthValue, self.useArcLength)
 			count = progress(count)
+		#for name, comps in componentGlyphs:
+		#	for component in comps:
+		#		nf[name].components.append(component)
 		if f.path != None:
 			progressBar.update(text=u'Saving, then opening…')
 			nf.save()
