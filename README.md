@@ -6,6 +6,8 @@
 
 ## Changes
 
+- **0.5.8**
+  - Fixed wrong approximation when a handle has length zero
 - **0.5.7**
   - Improved behavior when glyph has both contours and components
 - **0.5.6**

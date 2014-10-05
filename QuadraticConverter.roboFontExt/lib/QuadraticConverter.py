@@ -188,10 +188,19 @@ def splitCubicAtParams(cubic, ts):
 
 def uniqueQuadraticWithSameTangentsAsCubic((a, b, c, d)):
 	ab = b - a
-	if ab.squaredLength() < 0.4: return (a, c, d)
 	ca = a - c
 	cd = d - c
-	if cd.squaredLength() < 0.4: return (a, b, d)
+	lab = ab.squaredLength()
+	lcd = cd.squaredLength()
+	if lab < 0.1:
+		if lcd < 0.1:
+			print """I found a cubic segment that has two handles of length zero;
+			You might want to turn it into a simple line."""
+			return (a, 0.5*(a+d), d)
+		else:
+			return (a, c, d)
+	else:
+		if lcd < 0.1: return (a, b, d)
 	u = det2x2(ab, cd)
 	v = det2x2(ca, cd)
 	if abs( u ) < 1.0e-5:
