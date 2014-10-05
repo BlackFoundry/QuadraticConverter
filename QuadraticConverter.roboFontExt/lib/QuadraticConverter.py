@@ -188,8 +188,10 @@ def splitCubicAtParams(cubic, ts):
 
 def uniqueQuadraticWithSameTangentsAsCubic((a, b, c, d)):
 	ab = b - a
+	if ab.squaredLength() < 0.4: return (a, c, d)
 	ca = a - c
 	cd = d - c
+	if cd.squaredLength() < 0.4: return (a, b, d)
 	u = det2x2(ab, cd)
 	v = det2x2(ca, cd)
 	if abs( u ) < 1.0e-5:
