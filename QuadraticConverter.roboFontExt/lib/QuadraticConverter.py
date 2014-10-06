@@ -197,8 +197,8 @@ def uniqueQuadraticWithSameTangentsAsCubic(cubic):
 	lcd = cd.squaredLength()
 	if lab < 0.1:
 		if lcd < 0.1:
-			print """I found a cubic segment that has two handles of length zero;
-			You might want to turn it into a simple line."""
+			#print """I found a cubic segment that has two handles of length zero;
+			#You might want to turn it into a simple line."""
 			return (a, 0.5*(a+d), d)
 		else:
 			return (a, c, d)
@@ -329,7 +329,7 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 				nbPoints += 1
 				p0 = p1
 			elif seg.type == 'qcurve':
-				print "Should not have quadratic segment in here. Skipping."
+				#print "Should not have quadratic segment in here. Skipping.",
 				p0 = seg.points[-1]
 			elif seg.type == 'curve':
 				p1, p2, p3 = seg.points
@@ -359,7 +359,7 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 					nbPoints += 3
 				p0 = p3
 			else:
-				print "Unknown segment type: "+seg.type+". Skipping."
+				#print "Unknown segment type: "+seg.type+". Skipping.",
 				p0 = seg.points[-1]
 			prevSeg = seg
 	glyph.clearContours()
@@ -454,15 +454,23 @@ class InterfaceWindow(BaseWindowController):
 			if count % 10 == 0:
 				progressBar.update(text=u"Converting glyphs…")
 			return count + 1
+		badGlyphNames = []
 		for g in nf:
 			layerName = "Cubic contour"
 			cubicLayer = g.getLayer(layerName, clear=True)
 			g.copyToLayer(layerName, clear=True)
 			if len(g.components) > 0:
 				if len(g) > 0:
-					print "WARNING: glyph '"+g.name+"' has", len(g.components), "components and", len(g), "contours."
+					badGlyphNames.append(g.name)
 			convert(g, self.maxDistanceValue, self.minLengthValue, self.useArcLength)
 			count = progress(count)
+		if badGlyphNames != []:
+			if len(badGlyphNames) == 1:
+				print "WARNING: The glyph '"+g.name+"' has at least one contour AND one component."
+			else:
+				print "WARNING: The following glyphs have at least one contour AND one component:"
+				for n in badGlyphNames: print n+", ",
+				print '\n'
 		if f.path != None:
 			progressBar.update(text=u'Saving, then opening…')
 			nf.save()
