@@ -209,10 +209,14 @@ def uniqueQuadraticWithSameTangentsAsCubic(cubic):
 	if abs( u ) < 1.0e-5:
 		# we have parallel antennas
 		return quadraticMidPointApprox(cubic) # (a, 0.5*(a+d), d)
-	t = - v / u
-	if t < 0.0:
+	tv = - v / u
+	if tv < 0.0:
 		return quadraticMidPointApprox(cubic) # (a, 0.5*(a+d), d)
-	x = a + ( t * ab )
+	w = det2x2(ab, d-b)
+	tw = w / u
+	if tw < 0.0:
+		return quadraticMidPointApprox(cubic) # (a, 0.5*(a+d), d)
+	x = a + ( tv * ab )
 	return (a, x, d)
 
 def adaptiveConvexCubicSplit(cubic, dmax, minLength):
