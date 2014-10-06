@@ -126,8 +126,8 @@ def splitCubicOnInflection(cubic):
 	"""Splits a cubic bezier at inflection points.
 	
 	Returns one, two or three cubic bezier, in a list."""
-        a, b, c, d = cubic
-        if det2x2(b-a, d-a) * det2x2(a-d, c-d) >= 0.0: return [cubic]
+	a, b, c, d = cubic
+	if det2x2(b-a, d-a) * det2x2(a-d, c-d) >= 0.0: return [cubic]
 	t = cubicInflectionParam(cubic)
 	if t == None:
 		return [cubic]
@@ -209,6 +209,8 @@ def uniqueQuadraticWithSameTangentsAsCubic((a, b, c, d)):
 		# we have parallel antennas
 		return (a, 0.5*(a+d), d)
 	t = - v / u
+	if t < 0.0:
+		return (a, 0.5*(a+d), d)
 	x = a + ( t * ab )
 	return (a, x, d)
 
@@ -478,7 +480,7 @@ class InterfaceWindow(BaseWindowController):
 		if CurrentGlyph() == None:
 			return;
 
-		scale        = info['scale']
+		scale = info['scale']
 		convertedGlyph = convert(CurrentGlyph().copy(), self.maxDistanceValue, self.minLengthValue, self.useArcLength)
 
 		for c in convertedGlyph:
