@@ -188,7 +188,8 @@ def splitCubicAtParams(cubic, ts):
 		prev_t = ts[i]
 	return c_list
 
-def uniqueQuadraticWithSameTangentsAsCubic((a, b, c, d)):
+def uniqueQuadraticWithSameTangentsAsCubic(cubic):
+	a, b, c, d = cubic
 	ab = b - a
 	ca = a - c
 	cd = d - c
@@ -207,10 +208,10 @@ def uniqueQuadraticWithSameTangentsAsCubic((a, b, c, d)):
 	v = det2x2(ca, cd)
 	if abs( u ) < 1.0e-5:
 		# we have parallel antennas
-		return (a, 0.5*(a+d), d)
+		return quadraticMidPointApprox(cubic) # (a, 0.5*(a+d), d)
 	t = - v / u
 	if t < 0.0:
-		return (a, 0.5*(a+d), d)
+		return quadraticMidPointApprox(cubic) # (a, 0.5*(a+d), d)
 	x = a + ( t * ab )
 	return (a, x, d)
 
