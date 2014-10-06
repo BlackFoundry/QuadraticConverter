@@ -126,8 +126,12 @@ def splitCubicOnInflection(cubic):
 	"""Splits a cubic bezier at inflection points.
 	
 	Returns one, two or three cubic bezier, in a list."""
+
+	# if the two antennas are on the same side, we don't add the
+	# inflection point (might be dangerous, we'll see in time...)
 	a, b, c, d = cubic
 	if det2x2(b-a, d-a) * det2x2(a-d, c-d) >= 0.0: return [cubic]
+
 	t = cubicInflectionParam(cubic)
 	if t == None:
 		return [cubic]

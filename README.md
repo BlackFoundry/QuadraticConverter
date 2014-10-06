@@ -6,6 +6,9 @@
 
 ## Changes
 
+- **0.5.9**
+  - The conversion avoids inserting some inflection points
+  - The approximation of a cubic by a single quadratic is more robust
 - **0.5.8**
   - Fixed wrong approximation when a handle has length zero
 - **0.5.7**
