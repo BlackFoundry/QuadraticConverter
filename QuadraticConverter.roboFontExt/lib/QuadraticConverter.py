@@ -18,6 +18,7 @@ from mojo.drawingTools import drawGlyph, save, restore, stroke, fill, strokeWidt
 from mojo.UI import UpdateCurrentGlyphView
 from os import path as ospath
 import sys, tempfile, shutil
+#import robofab.misc.bezierTools
 
 class Point(object):
 	__slots__ = ('x', 'y')
@@ -261,41 +262,47 @@ def hasGoodSmoothQuadraticApprox(cubic, dmax, minLength):
 	d0 = 0.5 * ((3.0 * cubic[1]) - cubic[0])
 	d1 = 0.5 * ((3.0 * cubic[2]) - cubic[3])
 	if (d0 - d1).length() > scaleddmax:
-		return False
+		return (False, cubic)
 	A = 0.5 * (d0 + d1)
-	pt0, B, pt1 = uniqueQuadraticWithSameTangentsAsCubic(cubic)
 	v = cubic[3] - cubic[0]
 	l = v.length()
 	if l < 1.0e-3:
-		return False
+		return (False, cubic)
 	v = (1.0/l) * v
-	return abs(det2x2(A - B, v)) <= 2.0 * dmax
+	quad = uniqueQuadraticWithSameTangentsAsCubic(cubic)
+	return (abs(det2x2(A - quad[1], v)) <= 2.0 * dmax, quad)
 
 def oneHasBadApprox(cubics, dmax, minLength):
+	quads = []
 	for c in cubics:
-		if not hasGoodSmoothQuadraticApprox(c, dmax, minLength):
-			return True
-	return False
+		(good, q) =  hasGoodSmoothQuadraticApprox(c, dmax, minLength)
+		if not good:
+			return (True, [])
+		quads.append(q)
+	return (False, quads)
 
 def adaptiveSmoothCubicSplit(cubic, dmax, minLength, useArcLength):
 	l = lengthOfCubic(cubic)
-	cubics = [cubic]
 	if minLength > 0.0:
 		maxN = min(10, int(l / minLength))
 	else:
 		maxN = 10
 	n = 1
+	cubics = [cubic]
 	paramStack = [[(cubic, 1.0)]]
-	while (n <= maxN) and oneHasBadApprox(cubics, dmax, minLength):
+	(badApprox, quads) = oneHasBadApprox(cubics, dmax, minLength)
+	while (n <= maxN) and badApprox:
 		n += 1
 		if useArcLength:
-			#params = [findParamForLength(cubic, l, (i*l)/n) for i in range(1,n)]
-			#cubics = splitCubicAtParams(cubic, params)
 			refine(paramStack, l)
 			cubics = [ct[0] for ct in paramStack[-1]]
 		else:
 			cubics = splitCubicParamUniformly(cubic, n)
-	return cubics
+		(badApprox, quads) = oneHasBadApprox(cubics, dmax, minLength)
+	if badApprox:
+		return [uniqueQuadraticWithSameTangentsAsCubic(c) for c in cubics]
+	else:
+		return quads
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -305,14 +312,16 @@ def getFirstOnPoint(contour):
 		return firstSeg.points[0]
 	return contour[-1].points[-1]
 
+def lineto(pen, p):
+	pen.addPoint((p.x, p.y), segmentType='line',	smooth=False)
+
+def curveto(pen, (a, b, p, s)):
+	pen.addPoint((a.x, a.y), segmentType=None,	smooth=False)
+	pen.addPoint((b.x, b.y), segmentType=None,	smooth=False)
+	pen.addPoint((p.x, p.y), segmentType='qcurve',	smooth=s)
+
 def convert(glyph, maxDistance, minLength, useArcLength):
 	nbPoints = 0
-	def lineto(pen, p):
-		pen.addPoint((p.x, p.y), segmentType='line',	smooth=False)
-	def addoff(pen, p):
-		pen.addPoint((p.x, p.y), segmentType=None,	smooth=False)
-	def curveto(pen, p):
-		pen.addPoint((p.x, p.y), segmentType='qcurve',	smooth=True)
 	conts = []
 	for contour in glyph:
 		conts.append([])
@@ -338,8 +347,7 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 				pt3 = Point(p3.x, p3.y)
 				qsegs = []
 				for cubic in splitCubicOnInflection((pt0, pt1, pt2, pt3)):
-					qsegs = qsegs + [uniqueQuadraticWithSameTangentsAsCubic(c)
-							for c in adaptiveSmoothCubicSplit(cubic, maxDistance, minLength, useArcLength)]
+					qsegs = qsegs + adaptiveSmoothCubicSplit(cubic, maxDistance, minLength, useArcLength)
 				for qseg in qsegs:
 					# We have to split the quad segment because Robofont does not (seem to) support
 					# ON-OFF-ON quadratic bezier curves. If ever Robofont can handle this,
@@ -347,9 +355,7 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 					#	(a0, a1, a2) = qseg
 					#	cmds.append((curveto, (a1, a2)))
 					ql, qr = splitQuadratic(0.5, qseg)
-					cmds.append((addoff, ql[1]))
-					cmds.append((addoff, qr[1]))
-					cmds.append((curveto, qr[2]))
+					cmds.append((curveto, (ql[1], qr[1], qr[2], seg.smooth)))
 					nbPoints += 3
 				p0 = p3
 			else:
@@ -357,7 +363,6 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 				p0 = seg.points[-1]
 			prevSeg = seg
 	glyph.clearContours()
-	glyph.width = glyph.width
 	glyph.preferredSegmentStyle = 'qcurve'
 	pen = ReverseContourPointPen(glyph.getPointPen())
 	for cmds in conts:
@@ -367,7 +372,8 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 		pen.endPath()
 	# Now, we make sure that each contour starts with a ON control point
 	for contour in glyph:
-		contour.autoStartSegment()
+		contour.setStartSegment(0)
+		#contour.autoStartSegment()
 		# If we want a custom start segment, we should use:
 		# contour.setStartSegment(self, segmentIndex):
 	glyph.update()
@@ -442,22 +448,20 @@ class InterfaceWindow(BaseWindowController):
 			if ret != 1: return False
 			nf = f
 		nf.lib['com.typemytype.robofont.segmentType'] = 'qCurve'
-		progressBar.setTickCount((len(nf)+9)/10 + 2)
+		if f.path != None: progressBar.setTickCount(21)
+		else: progressBar.setTickCount(20)
+		tenth = int(len(nf)/20)
 		count = 0
-		def progress(count):
-			if count % 10 == 0:
-				progressBar.update(text=u"Converting glyphs…")
-			return count + 1
 		badGlyphNames = []
 		for g in nf:
 			layerName = "Cubic contour"
 			cubicLayer = g.getLayer(layerName, clear=True)
 			g.copyToLayer(layerName, clear=True)
-			if len(g.components) > 0:
-				if len(g) > 0:
-					badGlyphNames.append(g.name)
+			if len(g.components) > 0 and len(g) > 0:
+				badGlyphNames.append(g.name)
 			convert(g, self.maxDistanceValue, self.minLengthValue, self.useArcLength)
-			count = progress(count)
+			if (count % tenth) == 0: progressBar.update(text=u"Converting glyphs…")
+			count += 1
 		if badGlyphNames != []:
 			if len(badGlyphNames) == 1:
 				print "WARNING: The glyph '"+g.name+"' has at least one contour AND one component."
