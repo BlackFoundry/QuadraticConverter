@@ -101,26 +101,26 @@ def cubicInflectionParam((p1, c1, c2, p2)):
 		return (root1, root1)
 	return None
 
-def splitQuadratic(t, (p0, p1, p2)):
+def splitQuadratic(t, quadBez):
 	"""Splits a quadratic Bezier into two quadratic Bezier at the given parameter t.
 
 	Uses de Casteljau algorithm."""
-	a0 = lerp(t, p0, p1)
-	a1 = lerp(t, p1, p2)
+	a0 = lerp(t, quadBez[0], quadBez[1])
+	a1 = lerp(t, quadBez[1], quadBez[2])
 	c0 = lerp(t, a0, a1)
-	return (p0, a0, c0), (c0, a1, p2)
+	return (quadBez[0], a0, c0), (c0, a1, quadBez[2])
 
-def splitCubic(t, (p0, p1, p2, p3)):
+def splitCubic(t, cubic):
 	"""Splits a cubic Bezier into two cubic Bezier at the given parameter t.
 
 	Uses de Casteljau algorithm."""
-	a0 = lerp(t, p0, p1)
-	a1 = lerp(t, p1, p2)
-	a2 = lerp(t, p2, p3)
+	a0 = lerp(t, cubic[0], cubic[1])
+	a1 = lerp(t, cubic[1], cubic[2])
+	a2 = lerp(t, cubic[2], cubic[3])
 	b0 = lerp(t, a0, a1)
 	b1 = lerp(t, a1, a2)
 	c0 = lerp(t, b0, b1)
-	return (p0, a0, b0, c0), (c0, b1, a2, p3)
+	return (cubic[0], a0, b0, c0), (c0, b1, a2, cubic[3])
 
 def splitCubicOnInflection(cubic):
 	"""Splits a cubic bezier at inflection points.
@@ -129,8 +129,8 @@ def splitCubicOnInflection(cubic):
 
 	# if the two antennas are on the same side, we don't add the
 	# inflection point (might be dangerous, we'll see in time...)
-	a, b, c, d = cubic
-	if det2x2(b-a, d-a) * det2x2(a-d, c-d) >= 0.0: return [cubic]
+	if det2x2(cubic[1]-cubic[0], cubic[3]-cubic[0]) * det2x2(cubic[0]-cubic[3], cubic[2]-cubic[3]) >= 0.0:
+		return [cubic]
 
 	t = cubicInflectionParam(cubic)
 	if t == None:
@@ -144,9 +144,8 @@ def splitCubicOnInflection(cubic):
 	return [cub0, cub1, cub2]
 
 def lengthOfCubic(cubic, err = 1.0):
-	(p0,p1,p2,p3) = cubic
-	l03 = (p0-p3).length()
-	l0123 = (p0-p1).length() + (p1-p2).length() + (p2-p3).length()
+	l03 = (cubic[0]-cubic[3]).length()
+	l0123 = (cubic[0]-cubic[1]).length() + (cubic[1]-cubic[2]).length() + (cubic[2]-cubic[3]).length()
 	if abs(l03-l0123) < err:
 		return 0.5 * (l03+l0123)
 	a, b = splitCubic(0.5, cubic)
@@ -265,16 +264,14 @@ def adaptiveCubicSplit(cubic, dmax, minLength):
 	return sum([adaptiveConvexCubicSplit(c, dmax, minLength) for c in splitCubicOnInflection(cubic)], [])
 
 def hasGoodSmoothQuadraticApprox(cubic, dmax, minLength):
-	#if (minLength > 0.0) and (lengthOfCubic(cubic) < minLength): return True
-	(p1, c1, c2, p2) = cubic
 	scaleddmax = dmax * 10.3923048454132637612
-	d0 = 0.5 * ((3.0 * c1) - p1)
-	d1 = 0.5 * ((3.0 * c2) - p2)
+	d0 = 0.5 * ((3.0 * cubic[1]) - cubic[0])
+	d1 = 0.5 * ((3.0 * cubic[2]) - cubic[3])
 	if (d0 - d1).length() > scaleddmax:
 		return False
 	A = 0.5 * (d0 + d1)
 	pt0, B, pt1 = uniqueQuadraticWithSameTangentsAsCubic(cubic)
-	v = p2 - p1
+	v = cubic[3] - cubic[0]
 	l = v.length()
 	if l < 1.0e-3:
 		return False
@@ -345,12 +342,12 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 				pt3 = Point(p3.x, p3.y)
 				cubicSegment = (pt0, pt1, pt2, pt3)
 				qsegs = []
-				if seg.smooth == False and prevSeg.smooth == False:
-					qsegs = [quadraticMidPointApprox(c)
-							for c in adaptiveCubicSplit(cubicSegment, maxDistance, minLength)]
-				else:
-					for cubic in splitCubicOnInflection(cubicSegment):
-						qsegs = qsegs + [uniqueQuadraticWithSameTangentsAsCubic(c)
+				#if seg.smooth == False and prevSeg.smooth == False:
+				#	qsegs = [quadraticMidPointApprox(c)
+				#			for c in adaptiveCubicSplit(cubicSegment, maxDistance, minLength)]
+				#else:
+				for cubic in splitCubicOnInflection(cubicSegment):
+					qsegs = qsegs + [uniqueQuadraticWithSameTangentsAsCubic(c)
 							for c in adaptiveSmoothCubicSplit(cubic, maxDistance, minLength, useArcLength)]
 				for qseg in qsegs:
 					# We have to split the quad segment because Robofont does not (seem to) support
@@ -358,10 +355,10 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 					# then it would suffice to write something like:
 					#	(a0, a1, a2) = qseg
 					#	cmds.append((curveto, (a1, a2)))
-					((a0, a1, a2), (a3, a4, a5)) = splitQuadratic(0.5, qseg)
-					cmds.append((addoff, a1))
-					cmds.append((addoff, a4))
-					cmds.append((curveto, a5))
+					ql, qr = splitQuadratic(0.5, qseg)
+					cmds.append((addoff, ql[1]))
+					cmds.append((addoff, qr[1]))
+					cmds.append((curveto, qr[2]))
 					nbPoints += 3
 				p0 = p3
 			else:
