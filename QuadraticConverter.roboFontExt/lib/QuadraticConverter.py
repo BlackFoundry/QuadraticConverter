@@ -18,7 +18,6 @@ from mojo.drawingTools import drawGlyph, save, restore, stroke, fill, strokeWidt
 from mojo.UI import UpdateCurrentGlyphView
 from os import path as ospath
 import sys, tempfile, shutil
-from fractions import Fraction
 
 class Point(object):
 	__slots__ = ('x', 'y')
@@ -171,7 +170,7 @@ def lengthOfCubic(cubic, err = 1.0):
 	a, b = splitCubic(0.5, cubic)
 	return lengthOfCubic(a, 0.5*err) + lengthOfCubic(b, 0.5*err)
 
-def fpflAux(cubic, tleft, lleft, tright, lright):
+def fpflAux(cubic, l0, tleft, lleft, tright, lright):
 	rat = (l0 - lleft) / (lright - lleft)
 	guess = tleft * (1.0 - rat) + tright * rat
 	(left, right) = splitCubic(guess, cubic)
@@ -183,7 +182,12 @@ def fpflAux(cubic, tleft, lleft, tright, lright):
 	return fpflAux(cubic, tleft, lleft, guess, ll)
 
 def findParamForLength(cubic, cubicLength, l0):
-	return fpflAux(cubic, 0.0, 0.0, 1.0, cubicLength)
+	return fpflAux(cubic, l0, 0.0, 0.0, 1.0, cubicLength)
+
+def gcd(a,b):
+	while b:
+		a, b = b, a%b
+	return a
 
 def refine(paramStack, initLength):
 	# (cubic, tRight)
@@ -201,12 +205,12 @@ def refine(paramStack, initLength):
 			prevTLeft = 0.0
 		else:
 			prevTLeft = prevCubics[numerator-2][1]
-		f = Fraction(numerator, denominator)
-		numer = f.numerator
-		denom = f.denominator
+		divi = gdc(numerator, denominator)
+		numer = int(f.numerator / divi)
+		denom = int(f.denominator / divi)
 		if denom == denominator:
 			t = findParamForLength(prevCubic, prevLength, (1.0-float(f))*prevLength)
-			t = prevTLeft + t * (prevTRight - prevTLeft
+			t = prevTLeft + t * (prevTRight - prevTLeft)
 		else:
 			t = prevCubics[numer-1][1]
 		a, cubic = splitCubic((t-tOrg)/(1.0-tOrg), cubic)
