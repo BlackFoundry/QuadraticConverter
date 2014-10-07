@@ -197,7 +197,7 @@ def refine(paramStack, initLength):
 	cubic = paramStack[0][0][0]
 	tOrg = 0
 	ts = []
-	prevLength = initLength / denominator
+	prevLength = initLength / float(n)
 	prevCubics = paramStack[-1]
 	for numerator in range(1,denominator):
 		prevCubic, prevTRight = prevCubics[numerator-1]
