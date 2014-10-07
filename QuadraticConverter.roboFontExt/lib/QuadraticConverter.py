@@ -178,8 +178,8 @@ def fpflAux(cubic, l0, tleft, lleft, tright, lright):
 	if abs(ll-l0) < 1.0:
 		return guess
 	if ll < l0:
-		return fpflAux(cubic, guess, ll, tright, lright)
-	return fpflAux(cubic, tleft, lleft, guess, ll)
+		return fpflAux(cubic, l0, guess, ll, tright, lright)
+	return fpflAux(cubic, l0, tleft, lleft, guess, ll)
 
 def findParamForLength(cubic, cubicLength, l0):
 	return fpflAux(cubic, l0, 0.0, 0.0, 1.0, cubicLength)
@@ -206,12 +206,12 @@ def refine(paramStack, initLength):
 		else:
 			prevTLeft = prevCubics[numerator-2][1]
 		divi = gcd(numerator, denominator)
-		numer = int(f.numerator / divi)
-		denom = int(f.denominator / divi)
-		if denom == denominator:
-			t = findParamForLength(prevCubic, prevLength, (1.0-float(f))*prevLength)
+		if divi == 1:
+			t = findParamForLength(prevCubic, prevLength, (1.0-float(numerator)/denominator)*prevLength)
 			t = prevTLeft + t * (prevTRight - prevTLeft)
 		else:
+			numer = int(numerator / divi)
+			denom = int(denominator / divi)
 			t = paramStack[denom-1][numer-1][1]
 		a, cubic = splitCubic((t-tOrg)/(1.0-tOrg), cubic)
 		ts.append((a, t))
