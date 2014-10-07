@@ -190,6 +190,8 @@ def refine(paramStack, initLength):
 	n = len(paramStack)
 	assert(n > 0)
 	denominator = n + 1
+	cubic = paramStack[0][0]
+	tOrg = 0
 	ts = []
 	prevLength = initLength / denominator
 	prevCubic = paramStack[-1]
@@ -204,9 +206,13 @@ def refine(paramStack, initLength):
 		denom = f.denominator
 		if denom == denominator:
 			t = findParamForLength(prevCubic, prevLength, (1.0-float(f))*prevLength)
-			ts.append(prevTLeft + t * (prevTRight - prevTLeft)
+			t = prevTLeft + t * (prevTRight - prevTLeft
 		else:
-			ts.append(prevCubics[numer-1][1])
+			t = prevCubics[numer-1][1]
+		a, cubic = splitCubic((t-tOrg)/(1.0-tOrg), cubic)
+		ts.append((a, t))
+		tOrg = t
+	ts.append((cubic, 1.0))
 	paramStack.append(ts)
 
 def quadraticMidPointApprox((p1, c1, c2, p2)):
