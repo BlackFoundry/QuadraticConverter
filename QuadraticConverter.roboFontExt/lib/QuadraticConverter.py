@@ -18,6 +18,7 @@ from mojo.drawingTools import drawGlyph, save, restore, stroke, fill, strokeWidt
 from mojo.UI import UpdateCurrentGlyphView
 from os import path as ospath
 import sys, tempfile, shutil
+from fractions import Fraction
 
 class Point(object):
 	__slots__ = ('x', 'y')
@@ -122,6 +123,25 @@ def splitCubic(t, cubic):
 	c0 = lerp(t, b0, b1)
 	return (cubic[0], a0, b0, c0), (c0, b1, a2, cubic[3])
 
+def splitCubicParamUniformly(cubic, n):
+	if n <= 1:
+		return [cubic]
+	c_list = [None] * n
+	c_list[0], c_list[1] = splitCubic(1.0/n, cubic)
+	for i in range(1, n-1):
+		c_list[i], c_list[i+1] = splitCubic(1.0/(n-i), c_list[i])
+	return c_list
+
+def splitCubicAtParams(cubic, ts):
+	n = len(ts)
+	c_list = [cubic] * (n+1)
+	prev_t = 0.0
+	for i in range(n):
+		t = (ts[i] - prev_t) / (1.0 - prev_t)
+		c_list[i], c_list[i+1] = splitCubic(t, c_list[i])
+		prev_t = ts[i]
+	return c_list
+
 def splitCubicOnInflection(cubic):
 	"""Splits a cubic bezier at inflection points.
 	
@@ -164,6 +184,20 @@ def findParamForLength(cubic, l0):
 		return aux(tleft, lleft, guess, ll)
 	return aux(0.0, 0.0, 1.0, lengthOfCubic(cubic))
 
+def refine(paramStack):
+	n = len(paramStack)
+	denominator = n + 2
+	ts = []
+	for numerator in range(1,denominator):
+		f = Fraction(numerator, denominator)
+		numer = f.numerator
+		denom = f.denominator
+		if denom == denominator:
+			ts.append(findParamForLength(cubic, float(f))
+		else:
+			ts.append(paramStack[denom-2][numer-1])
+	paramStack.append(ts)
+
 def quadraticMidPointApprox((p1, c1, c2, p2)):
 	"""Returns the midpoint quadratic approximation of a cubic Bezier, disregarding the quality of approximation."""
 	#d0 = 0.5 * ((3.0 * c1) - p1)
@@ -171,25 +205,6 @@ def quadraticMidPointApprox((p1, c1, c2, p2)):
 	#c = 0.5 * (d0 + d1)
 	c = 0.25 * ((3.0*(c1 + c2)) - p1 - p2)
 	return (p1, c, p2)
-
-def simpleSplitCubic(cubic, n):
-	if n <= 1:
-		return [cubic]
-	c_list = [None] * n
-	c_list[0], c_list[1] = splitCubic(1.0/n, cubic)
-	for i in range(1, n-1):
-		c_list[i], c_list[i+1] = splitCubic(1.0/(n-i), c_list[i])
-	return c_list
-
-def splitCubicAtParams(cubic, ts):
-	n = len(ts)
-	c_list = [cubic] * (n+1)
-	prev_t = 0.0
-	for i in range(n):
-		t = (ts[i] - prev_t) / (1.0 - prev_t)
-		c_list[i], c_list[i+1] = splitCubic(t, c_list[i])
-		prev_t = ts[i]
-	return c_list
 
 def uniqueQuadraticWithSameTangentsAsCubic(cubic):
 	a, b, c, d = cubic
@@ -292,13 +307,15 @@ def adaptiveSmoothCubicSplit(cubic, dmax, minLength, useArcLength):
 	else:
 		maxN = 10
 	n = 1
+	paramStack = []
 	while (n <= maxN) and oneHasBadApprox(cubics, dmax, minLength):
 		n += 1
 		if useArcLength:
-			params = [findParamForLength(cubic, (i*l)/n) for i in range(1,n)]
-			cubics = splitCubicAtParams(cubic, params)
+			#params = [findParamForLength(cubic, (i*l)/n) for i in range(1,n)]
+			refine(paramStack)
+			cubics = splitCubicAtParams(cubic, paramStack[-1])
 		else:
-			cubics = simpleSplitCubic(cubic, n)
+			cubics = splitCubicParamUniformly(cubic, n)
 	return cubics
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
