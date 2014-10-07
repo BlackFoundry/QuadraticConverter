@@ -373,9 +373,6 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 	# Now, we make sure that each contour starts with a ON control point
 	for contour in glyph:
 		contour.setStartSegment(0)
-		#contour.autoStartSegment()
-		# If we want a custom start segment, we should use:
-		# contour.setStartSegment(self, segmentIndex):
 	glyph.update()
 	return glyph
 

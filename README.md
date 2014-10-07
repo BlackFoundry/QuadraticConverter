@@ -6,6 +6,10 @@
 
 ## Changes
 
+- **0.6**
+  - Faster by not using the slow `contour.autoStartSegment()`
+  - Optimized code
+  - Slightly better approximation in non-smooth segments
 - **0.5.9**
   - The conversion avoids inserting some inflection points
   - The approximation of a cubic by a single quadratic is more robust
