@@ -4,6 +4,8 @@
 
 **QuadraticConverter** is an extension for RoboFont that converts Cubic (PostScript) UFO to Quadratic (TrueType) UFO.
 
+It might be installed manually ([download](https://github.com/sansplomb/QuadraticConverter/archive/master.zip) and double-click) or automatically with [*RoboFont Mechanic*](http://www.robofontmechanic.com)
+
 ## Changes
 
 - **0.6**
