@@ -194,25 +194,25 @@ def refine(paramStack, initLength):
 	n = len(paramStack)
 	assert(n > 0)
 	denominator = n + 1
-	cubic = paramStack[0][0]
+	cubic = paramStack[0][0][0]
 	tOrg = 0
 	ts = []
 	prevLength = initLength / denominator
-	prevCubic = paramStack[-1]
+	prevCubics = paramStack[-1]
 	for numerator in range(1,denominator):
 		prevCubic, prevTRight = prevCubics[numerator-1]
 		if numerator == 1:
 			prevTLeft = 0.0
 		else:
 			prevTLeft = prevCubics[numerator-2][1]
-		divi = gdc(numerator, denominator)
+		divi = gcd(numerator, denominator)
 		numer = int(f.numerator / divi)
 		denom = int(f.denominator / divi)
 		if denom == denominator:
 			t = findParamForLength(prevCubic, prevLength, (1.0-float(f))*prevLength)
 			t = prevTLeft + t * (prevTRight - prevTLeft)
 		else:
-			t = prevCubics[numer-1][1]
+			t = paramStack[denom-1][numer-1][1]
 		a, cubic = splitCubic((t-tOrg)/(1.0-tOrg), cubic)
 		ts.append((a, t))
 		tOrg = t
