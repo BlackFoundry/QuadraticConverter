@@ -171,31 +171,42 @@ def lengthOfCubic(cubic, err = 1.0):
 	a, b = splitCubic(0.5, cubic)
 	return lengthOfCubic(a, 0.5*err) + lengthOfCubic(b, 0.5*err)
 
-def findParamForLength(cubic, l0):
-	def aux(tleft, lleft, tright, lright):
-		rat = (l0 - lleft) / (lright - lleft)
-		guess = tleft * (1.0 - rat) + tright * rat
-		(left, right) = splitCubic(guess, cubic)
-		ll = lengthOfCubic(left, 0.1)
-		if abs(ll-l0) < 1.0:
-			return guess
-		if ll < l0:
-			return aux(guess, ll, tright, lright)
-		return aux(tleft, lleft, guess, ll)
-	return aux(0.0, 0.0, 1.0, lengthOfCubic(cubic))
+def fpflAux(cubic, tleft, lleft, tright, lright):
+	rat = (l0 - lleft) / (lright - lleft)
+	guess = tleft * (1.0 - rat) + tright * rat
+	(left, right) = splitCubic(guess, cubic)
+	ll = lengthOfCubic(left, 0.1)
+	if abs(ll-l0) < 1.0:
+		return guess
+	if ll < l0:
+		return fpflAux(cubic, guess, ll, tright, lright)
+	return fpflAux(cubic, tleft, lleft, guess, ll)
 
-def refine(paramStack):
+def findParamForLength(cubic, cubicLength, l0):
+	return fpflAux(cubic, 0.0, 0.0, 1.0, cubicLength)
+
+def refine(paramStack, initLength):
+	# (cubic, tRight)
 	n = len(paramStack)
-	denominator = n + 2
+	assert(n > 0)
+	denominator = n + 1
 	ts = []
+	prevLength = initLength / denominator
+	prevCubic = paramStack[-1]
 	for numerator in range(1,denominator):
+		prevCubic, prevTRight = prevCubics[numerator-1]
+		if numerator == 1:
+			prevTLeft = 0.0
+		else:
+			prevTLeft = prevCubics[numerator-2][1]
 		f = Fraction(numerator, denominator)
 		numer = f.numerator
 		denom = f.denominator
 		if denom == denominator:
-			ts.append(findParamForLength(cubic, float(f))
+			t = findParamForLength(prevCubic, prevLength, (1.0-float(f))*prevLength)
+			ts.append(prevTLeft + t * (prevTRight - prevTLeft)
 		else:
-			ts.append(paramStack[denom-2][numer-1])
+			ts.append(prevCubics[numer-1][1])
 	paramStack.append(ts)
 
 def quadraticMidPointApprox((p1, c1, c2, p2)):
@@ -235,49 +246,6 @@ def uniqueQuadraticWithSameTangentsAsCubic(cubic):
 	x = a + ( tv * ab )
 	return (a, x, d)
 
-def adaptiveConvexCubicSplit(cubic, dmax, minLength):
-	"""Returns an approximation of a cubic Bezier as a list of quadratic Bezier.
-
-	Assumes the cubic curve has no inflection point.
-	Many thanks to Adrian Colomitchi.
-	http://caffeineowl.com/graphics/2d/vectorial/cubic2quad01.html"""
-	(p1, c1, c2, p2) = cubic
-	#d0 = 0.5 * ((3.0 * c1) - p1)
-	#d1 = 0.5 * ((3.0 * c2) - p2)
-	#d = (d0 - d1).length()
-	scaleddmax = dmax * 10.3923048454132637612 # = dmax * 18/√3
-	d = 0.5 * ((3.0*(c1 - c2)) + p2 - p1).length()
-	if d <= scaleddmax:
-		return [cubic]
-	t = pow(scaleddmax / d, 0.33333333333333333333333)
-	if t > 1.0:
-		return [cubic] # should not happen but just in case
-	if t >= 0.5:
-		c1, c2 = splitCubic(0.5, cubic)
-		if (minLength > 0.0):
-			if lengthOfCubic(c1) < minLength: return [cubic]
-			if lengthOfCubic(c2) < minLength: return [cubic]
-		return [c1, c2]
-	#print "adaptive split at", t, (1.0-t)
-	cub0, tempcubic = splitCubic(t, cubic)
-	t2 = (1.0 - t - t) / (1.0 - t)
-	cub1, cub2 = splitCubic(t2, tempcubic)
-	(m0, m1, m2, m3) = cub1
-	if (m0 - m3).length() < minLength:
-		c1, c2 = splitCubic(0.5, cubic)
-		if (minLength > 0.0):
-			if lengthOfCubic(c1) < minLength: return [cubic]
-			if lengthOfCubic(c2) < minLength: return [cubic]
-		return adaptiveConvexCubicSplit(c1, dmax, minLength) + adaptiveConvexCubicSplit(c2, dmax, minLength)
-	if (minLength > 0.0):
-		if lengthOfCubic(cub0) < minLength: return [cubic]
-		if lengthOfCubic(cub2) < minLength: return [cubic]
-	return [cub0] + adaptiveConvexCubicSplit(cub1, dmax, minLength) + [cub2]
-
-def adaptiveCubicSplit(cubic, dmax, minLength):
-	"""Returns an approximation of a cubic Bezier as a list of quadratic Bezier."""
-	return sum([adaptiveConvexCubicSplit(c, dmax, minLength) for c in splitCubicOnInflection(cubic)], [])
-
 def hasGoodSmoothQuadraticApprox(cubic, dmax, minLength):
 	scaleddmax = dmax * 10.3923048454132637612
 	d0 = 0.5 * ((3.0 * cubic[1]) - cubic[0])
@@ -307,13 +275,14 @@ def adaptiveSmoothCubicSplit(cubic, dmax, minLength, useArcLength):
 	else:
 		maxN = 10
 	n = 1
-	paramStack = []
+	paramStack = [[(cubic, 1.0)]]
 	while (n <= maxN) and oneHasBadApprox(cubics, dmax, minLength):
 		n += 1
 		if useArcLength:
-			#params = [findParamForLength(cubic, (i*l)/n) for i in range(1,n)]
-			refine(paramStack)
-			cubics = splitCubicAtParams(cubic, paramStack[-1])
+			#params = [findParamForLength(cubic, l, (i*l)/n) for i in range(1,n)]
+			#cubics = splitCubicAtParams(cubic, params)
+			refine(paramStack, l)
+			cubics = [ct[0] for ct in paramStack[-1]]
 		else:
 			cubics = splitCubicParamUniformly(cubic, n)
 	return cubics
@@ -357,13 +326,8 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 				pt1 = Point(p1.x, p1.y)
 				pt2 = Point(p2.x, p2.y)
 				pt3 = Point(p3.x, p3.y)
-				cubicSegment = (pt0, pt1, pt2, pt3)
 				qsegs = []
-				#if seg.smooth == False and prevSeg.smooth == False:
-				#	qsegs = [quadraticMidPointApprox(c)
-				#			for c in adaptiveCubicSplit(cubicSegment, maxDistance, minLength)]
-				#else:
-				for cubic in splitCubicOnInflection(cubicSegment):
+				for cubic in splitCubicOnInflection((pt0, pt1, pt2, pt3)):
 					qsegs = qsegs + [uniqueQuadraticWithSameTangentsAsCubic(c)
 							for c in adaptiveSmoothCubicSplit(cubic, maxDistance, minLength, useArcLength)]
 				for qseg in qsegs:
