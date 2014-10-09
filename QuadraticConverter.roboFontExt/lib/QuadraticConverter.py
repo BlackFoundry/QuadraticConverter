@@ -548,6 +548,9 @@ class InterfaceWindow(BaseWindowController):
 		g = CurrentGlyph()
 		if None == g: return
 		layerToConvert = self.layers[self.w.layerPopup.get()]
+		if layerToConvert == 'foreground':
+			Dialogs.Message("I can only convert contours from a layer different from 'foreground'.")
+			return
 		g.flipLayers('foreground', layerToConvert)
 		g.copyToLayer(layerToConvert)
 		convert(g, self.maxDistanceValue, self.minLengthValue, self.useArcLength)
@@ -563,8 +566,8 @@ class InterfaceWindow(BaseWindowController):
 		except:
 			print "Unexpected error in QuadraticConverter:", sys.exc_info()
 		progress.close()
-		if closeWindow:
-			self.w.close()
+		#if closeWindow:
+		#	self.w.close()
 	
 	def closeCallBack(self, sender):
 		self.w.close()
