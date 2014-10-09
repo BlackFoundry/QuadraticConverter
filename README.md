@@ -8,6 +8,8 @@ It might be installed manually ([download](https://github.com/sansplomb/Quadrati
 
 ## Changes
 
+- **0.6.1**
+  - Added a button to convert a single glyph from an existing cubic layer. This is useful for fine-tuning a converted font (use the *Cubic contour* layer)
 - **0.6**
   - Faster by not using the slow `contour.autoStartSegment()`
   - Optimized code
