@@ -49,7 +49,10 @@ class Point(object):
 	def squaredLength(self):
 		return self.x * self.x + self.y * self.y
 	def length(self):
-		return sqrt(self.squaredLength());
+		return sqrt(self.squaredLength())
+
+def roundPair(p):
+	return round(p.x), round(p.y)
 
 def lerp(t, a, b):
 	return (t * b) + ((1.0 - t) * a)
@@ -248,13 +251,13 @@ def uniqueQuadraticWithSameTangentsAsCubic(cubic):
 	if abs( u ) < 1.0e-5:
 		# we have parallel antennas
 		return quadraticMidPointApprox(cubic) # (a, 0.5*(a+d), d)
-	tv = - v / u
-	if tv < 0.0:
+	t = - v / u
+	if t < 0.0: # Line (c,d) crosses the line (a,b) on the wrong side: at point p where a is in the middle of b and p.
 		return quadraticMidPointApprox(cubic) # (a, 0.5*(a+d), d)
 	w = det2x2(ab, d - b)
-	if w * u < 0.0:
+	if w * u < 0.0: # Line (a,b) crosses the line (c,d) on the wrong side: at point p where d is in the middle of c and p.
 		return quadraticMidPointApprox(cubic) # (a, 0.5*(a+d), d)
-	x = a + ( tv * ab )
+	x = a + ( t * ab )
 	return (a, x, d)
 
 def hasGoodSmoothQuadraticApprox(cubic, dmax, minLength):
@@ -313,12 +316,12 @@ def getFirstOnPoint(contour):
 	return contour[-1].points[-1]
 
 def lineto(pen, p):
-	pen.addPoint((p.x, p.y), segmentType='line',	smooth=False)
+	pen.addPoint(roundPair(p), segmentType='line',	smooth=False)
 
 def curveto(pen, (a, b, p, s)):
-	pen.addPoint((a.x, a.y), segmentType=None,	smooth=False)
-	pen.addPoint((b.x, b.y), segmentType=None,	smooth=False)
-	pen.addPoint((p.x, p.y), segmentType='qcurve',	smooth=s)
+	pen.addPoint(roundPair(a), segmentType=None,	smooth=False)
+	pen.addPoint(roundPair(b), segmentType=None,	smooth=False)
+	pen.addPoint(roundPair(p), segmentType='qcurve',	smooth=s)
 
 def convert(glyph, maxDistance, minLength, useArcLength):
 	nbPoints = 0
