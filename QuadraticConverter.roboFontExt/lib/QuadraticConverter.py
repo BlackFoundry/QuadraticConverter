@@ -12,6 +12,7 @@ from mojo.events import addObserver, removeObserver
 from lib.tools.bezierTools import curveConverter
 from robofab.world import *
 from robofab.pens.reverseContourPointPen import ReverseContourPointPen
+import robofab.interface.all.dialogs as Dialogs
 from math import sqrt, log, exp
 from AppKit import *
 from mojo.drawingTools import drawGlyph, save, restore, stroke, fill, strokeWidth
@@ -351,14 +352,17 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 				qsegs = []
 				for cubic in splitCubicOnInflection((pt0, pt1, pt2, pt3)):
 					qsegs = qsegs + adaptiveSmoothCubicSplit(cubic, maxDistance, minLength, useArcLength)
-				for qseg in qsegs:
+				nbQSegMinusOne = len(qsegs) - 1
+				smooth = True
+				for i, qseg in enumerate(qsegs):
 					# We have to split the quad segment because Robofont does not (seem to) support
 					# ON-OFF-ON quadratic bezier curves. If ever Robofont can handle this,
 					# then it would suffice to write something like:
 					#	(a0, a1, a2) = qseg
 					#	cmds.append((curveto, (a1, a2)))
 					ql, qr = splitQuadratic(0.5, qseg)
-					cmds.append((curveto, (ql[1], qr[1], qr[2], seg.smooth)))
+					if i == nbQSegMinusOne: smooth = seg.smooth
+					cmds.append((curveto, (ql[1], qr[1], qr[2], smooth)))
 					nbPoints += 3
 				p0 = p3
 			else:
@@ -369,6 +373,7 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 	glyph.preferredSegmentStyle = 'qcurve'
 	pen = ReverseContourPointPen(glyph.getPointPen())
 	for cmds in conts:
+		if cmds == []: continue
 		pen.beginPath()
 		for action, args in cmds:
 			action(pen, args)
@@ -387,7 +392,7 @@ OffColor = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.2, .8, .8, 1)
 class InterfaceWindow(BaseWindowController):
 	def __init__(self):
 		BaseWindowController.__init__(self)
-		self.w = FloatingWindow((340, 180), 'Quadratic Converter')
+		self.w = FloatingWindow((340, 230), 'Quadratic Converter')
 		# ---------------------------
 		top = 10
 		self.w.maxDistanceTitle = TextBox((10, top, 100, 20), "Max Distance: ")
@@ -413,11 +418,17 @@ class InterfaceWindow(BaseWindowController):
 		# ---------------------------
 		top = 110
 		self.useArcLength = True
-		self.w.arclencheckbox = CheckBox((10, top-10, 90, 20), "Arc length", callback=self.arcLengthCheckBoxCallback, value=self.useArcLength)
+		self.w.arclencheckbox = CheckBox((10, top, 90, 20), "Arc length", callback=self.arcLengthCheckBoxCallback, value=self.useArcLength)
 		self.calculatePreview = True
-		self.w.previewCheckBox = CheckBox((10, top+10, 70, 20), "Preview", callback=self.previewCheckBoxCallback, value=self.calculatePreview)
-		self.w.closeButton = Button((120, top, 70, 20), "Close", callback=self.closeCallBack)
+		self.w.previewCheckBox = CheckBox((10, top+22, 70, 20), "Preview", callback=self.previewCheckBoxCallback, value=self.calculatePreview)
+		self.w.closeButton = SquareButton((120, top+1, 70, 42), "Close", callback=self.closeCallBack)
 		self.w.convertCurrentFont = Button((210, top, 120, 20), "Convert Font", callback=self.convertCurrentFontCallback)
+		self.w.convertCurrentGlyph = Button((210, top+22, 120, 20), "Convert Glyph", callback=self.convertCurrentGlyphCallback)
+		# ---------------------------
+		top = 160
+		self.layers = ["foreground"]+CurrentFont().layerOrder
+		self.w.layerText = TextBox((10, top, 190, 20), "Layer (per-glyph conversion): ")
+		self.w.layerPopup = PopUpButton((200, top, 120, 20), self.layers, callback=self.arcLengthCheckBoxCallback)
 		# ---------------------------
 		self.w.infoText = TextBox((10, -38, -10, 34), "WARNING. Un-saved modifications in a UFO will not be converted.")
 		# ---------------------------
@@ -429,7 +440,6 @@ class InterfaceWindow(BaseWindowController):
 	def convertFont(self, f, progressBar):
 		if f == None:
 			return False
-		import robofab.interface.all.dialogs as Dialogs
 		if f.path != None:
 			root, tail = ospath.split(f.path)
 			name, ext = ospath.splitext(tail)
@@ -484,11 +494,17 @@ class InterfaceWindow(BaseWindowController):
 	def draw(self, info):
 		if not self.calculatePreview:
 			return
-		if CurrentGlyph() == None:
+		cur = CurrentGlyph()
+		if cur == None:
 			return;
 
 		scale = info['scale']
-		convertedGlyph = convert(CurrentGlyph().copy(), self.maxDistanceValue, self.minLengthValue, self.useArcLength)
+		layerToConvert = self.layers[self.w.layerPopup.get()]
+		otherLayer = layerToConvert != 'forefround'
+		if otherLayer: cur.flipLayers('foreground', layerToConvert)
+		copy = cur.copy()
+		if otherLayer: cur.flipLayers('foreground', layerToConvert)
+		convertedGlyph = convert(copy, self.maxDistanceValue, self.minLengthValue, self.useArcLength)
 
 		for c in convertedGlyph:
 			for p in c.points:
@@ -526,6 +542,16 @@ class InterfaceWindow(BaseWindowController):
 
 	def previewCheckBoxCallback(self, sender):
 		self.calculatePreview = sender.get()
+		UpdateCurrentGlyphView()
+
+	def convertCurrentGlyphCallback(self, sender):
+		g = CurrentGlyph()
+		if None == g: return
+		layerToConvert = self.layers[self.w.layerPopup.get()]
+		g.flipLayers('foreground', layerToConvert)
+		g.copyToLayer(layerToConvert)
+		convert(g, self.maxDistanceValue, self.minLengthValue, self.useArcLength)
+		CurrentFont().update()
 		UpdateCurrentGlyphView()
 
 	def convertCurrentFontCallback(self, sender):
