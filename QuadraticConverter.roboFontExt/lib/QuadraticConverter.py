@@ -457,7 +457,7 @@ class InterfaceWindow(BaseWindowController):
 					default=1) # default value is not taken into account :-(
 			if ret != 1: return False
 			nf = f
-		nf.lib['com.typemytype.robofont.segmentType'] = 'qCurve'
+		nf.lib['com.typemytype.robofont.segmentType'] = 'qcurve'
 		if f.path != None: progressBar.setTickCount(21)
 		else: progressBar.setTickCount(20)
 		tenth = int(len(nf)/20)
@@ -500,7 +500,9 @@ class InterfaceWindow(BaseWindowController):
 
 		scale = info['scale']
 		layerToConvert = self.layers[self.w.layerPopup.get()]
-		otherLayer = layerToConvert != 'forefround'
+		otherLayer = layerToConvert != 'foreground'
+		if (not otherLayer) and (CurrentFont().lib['com.typemytype.robofont.segmentType'] == 'qcurve'):
+			return
 		if otherLayer: cur.flipLayers('foreground', layerToConvert)
 		copy = cur.copy()
 		if otherLayer: cur.flipLayers('foreground', layerToConvert)
@@ -559,6 +561,8 @@ class InterfaceWindow(BaseWindowController):
 
 	def convertCurrentFontCallback(self, sender):
 		f = CurrentFont()
+		if f.lib['com.typemytype.robofont.segmentType'] == 'qcurve':
+			Dialogs.Message("I can only convert cubic fonts.")
 		progress = self.startProgress(u'Copying font…')
 		closeWindow = False
 		try:
