@@ -398,7 +398,7 @@ class InterfaceWindow(BaseWindowController):
 		self.w.maxDistanceTitle = TextBox((10, top, 100, 20), "Max Distance: ")
 		minMaxDist  = 0.01
 		maxMaxDist  = 10.0
-		initMaxDist = 0.6
+		initMaxDist = 1.0
 		self.maxDistanceValue = initMaxDist
 		self.w.maxDistanceValueText = TextBox((110, top, -10, 22), str(initMaxDist))
 		self.w.maxDistanceSlider = Slider( (10, top+20, -10, 20),
@@ -563,6 +563,7 @@ class InterfaceWindow(BaseWindowController):
 		f = CurrentFont()
 		if f.lib['com.typemytype.robofont.segmentType'] == 'qcurve':
 			Dialogs.Message("I can only convert cubic fonts.")
+			return
 		progress = self.startProgress(u'Copying font…')
 		closeWindow = False
 		try:
