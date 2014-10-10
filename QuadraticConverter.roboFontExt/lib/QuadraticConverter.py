@@ -19,7 +19,7 @@ from mojo.drawingTools import drawGlyph, save, restore, stroke, fill, strokeWidt
 from mojo.UI import UpdateCurrentGlyphView
 from os import path as ospath
 import sys, tempfile, shutil
-#import robofab.misc.bezierTools
+import robofab.misc.bezierTools as rbt
 
 class Point(object):
 	__slots__ = ('x', 'y')
@@ -61,7 +61,54 @@ def lerp(t, a, b):
 def det2x2(a, b):
 	return a.x * b.y - a.y * b.x
 
+def dot(a, b):
+	return (a.x * b.x + a.y * b.y)
+
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+eps = 1.0e-6
+
+def solveQuadratic(a, b, c):
+	if abs(a) < eps:
+		if abs(b) < eps: return []
+		return [- c / b]
+	disc = b * b - 4.0 * a * c
+	if disc < 0.0: return []
+	if disc < eps:
+		t = - b / (2.0 * a)
+		return [t, t]
+	disc = sqrt(disc)
+	root1 = ( - b - disc ) / (2.0 * a)
+	root2 = ( - b + disc ) / (2.0 * a)
+	if root2 < root1:
+		root1, root2 = root2, root1
+	return [root1, root2]
+
+def cardanMethod(p, q): # from Wikipedia
+	delta = - (4.0 * p*p*p + 27.0 * q*q)
+	sq = cmath.sqrt(-delta/27.0)
+	ubase = cmath.pow(0.5 * (+sq - q), 0.333333333333333)
+	vbase = cmath.pow(0.5 * (-sq - q), 0.333333333333333)
+	ts = []
+	j = cmath.exp(cmath.pi * 0.6666666666666666)
+	jup = 1	# 1  j  j^2
+	jdo = 1	# 1  j^-1  j^-2
+	if delta < 0.0: pass
+	for i in range(3):
+		t = jup*ubase + jdo*vbase
+		if abs(t.imag) < 1.0e-3 * abs(t.real): ts.append(t.real)
+		jup *= j
+		jdo /= j
+
+def solveCubic(a, b, c, d): # from Wikipedia
+	return rbt.solveCubic(a,b,c,d)
+	#if abs(a) < eps: return solveQuadratic(b, c, d)
+	#offset = b/(3.0*a)
+	#p = (c - b*offset)/a
+	#q = 2.0*offset*offset*offset + (d - offset*c)/a
+	#zs = cardanMethod(p, q)
+	#if zs = None: return None
+	#return [z-offset for z in zs]
 
 def cubicInflectionParam((p1, c1, c2, p2)):
 	"""Returns the parameter value(s) of inflection points, if any.
@@ -73,38 +120,7 @@ def cubicInflectionParam((p1, c1, c2, p2)):
 	vc = p2 - (3.0 * c2) + (3.0 * c1) - p1
 	(a, b, c) = (det2x2(vb, vc), det2x2(va, vc), det2x2(va, vb))
 	# now we have to solve [ a t^2 + b t + c = 0 ]
-	eps = 1.0e-6
-	if abs(a) < eps:
-		if abs(b) < eps:
-			return None
-		t = - c / b
-		if t < eps or t > 1.0-eps:
-			return None
-		return (t, t)
-	disc = b * b - 4.0 * a * c
-	if disc < 0.0:
-		return None
-	if disc < eps:
-		t = - b / (2.0 * a)
-		if t < eps or t > 1.0-eps:
-			return None
-		return (t, t)
-	disc = sqrt(disc)
-	root1 = ( - b - disc ) / (2.0 * a)
-	root2 = ( - b + disc ) / (2.0 * a)
-	if root2 < root1:
-		root1, root2 = root2, root1
-	if root1 < eps:
-		if root2 < eps:
-			return None
-		if root2 <= 1.0 - eps:
-			return (root2, root2)
-		return None
-	if root1 <= 1.0 - eps:
-		if root2 <= 1.0 - eps:
-			return (root1, root2)
-		return (root1, root1)
-	return None
+	return [t for t in solveQuadratic(a, b, c) if (t>=eps) and (t<=1.0-eps)]
 
 def splitQuadratic(t, quadBez):
 	"""Splits a quadratic Bezier into two quadratic Bezier at the given parameter t.
@@ -157,15 +173,35 @@ def splitCubicOnInflection(cubic):
 		return [cubic]
 
 	t = cubicInflectionParam(cubic)
-	if t == None:
+	if t == []:
 		return [cubic]
-	t1, t2 = t
-	cub0, tempcubic = splitCubic(t1, cubic)
-	if t1 == t2:
+	cub0, tempcubic = splitCubic(t[0], cubic)
+	if len(t) == 1 or t[0] == t[1]:
 		return [cub0, tempcubic]
-	t2 = (t2 - t1) / (1.0 - t1)
+	t2 = (t[1] - t[0]) / (1.0 - t[0])
 	cub1, cub2 = splitCubic(t2, tempcubic)
 	return [cub0, cub1, cub2]
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+def distanceToQuadratic(m, quad):
+	p0, p1, p2 = quad
+	# From http://blog.gludion.com/2009/08/distance-to-quadratic-bezier-curve.html
+	A = p1 - p0
+	B = p2 - p1 - A
+	# coeffs of third degree polynomial
+	a = B.squaredLength()
+	b = 3.0 * dot(A, B)
+	mp = p0 - m
+	c = 2.0 * A.squaredLength() + dot(mp, B)
+	d = dot(mp, A)
+	pts = [splitQuadratic(t, quad)[0][2] for t in solveCubic(a,b,c,d) if (t>=eps) and (t<=1.0-eps)]
+	dists = [(m-p).length() for p in (pts+[p0,p2])]
+	return min(dists)
+
+def QuadCubicDistance(quad, cubic):
+	ts = [0.2, 0.4, 0.5, 0.6, 0.8]
+	return max([distanceToQuadratic(splitCubic(t, cubic)[0][3], quad) for t in ts])
 
 def lengthOfCubic(cubic, err = 1.0):
 	l03 = (cubic[0]-cubic[3]).length()
@@ -262,6 +298,8 @@ def uniqueQuadraticWithSameTangentsAsCubic(cubic):
 	return (a, x, d)
 
 def hasGoodSmoothQuadraticApprox(cubic, dmax, minLength):
+	#quad = uniqueQuadraticWithSameTangentsAsCubic(cubic)
+	#return (QuadCubicDistance(quad, cubic) <= dmax, quad)
 	scaleddmax = dmax * 10.3923048454132637612
 	d0 = 0.5 * ((3.0 * cubic[1]) - cubic[0])
 	d1 = 0.5 * ((3.0 * cubic[2]) - cubic[3])
@@ -382,7 +420,7 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 	for contour in glyph:
 		contour.setStartSegment(0)
 	glyph.update()
-	return glyph
+	return nbPoints
 
 # - - - - - - - - - - - - - - - - -
 
@@ -462,6 +500,7 @@ class InterfaceWindow(BaseWindowController):
 		else: progressBar.setTickCount(20)
 		tenth = int(len(nf)/20)
 		count = 0
+		nbPoints = 0
 		badGlyphNames = []
 		for g in nf:
 			layerName = "Cubic contour"
@@ -469,9 +508,11 @@ class InterfaceWindow(BaseWindowController):
 			g.copyToLayer(layerName, clear=True)
 			if len(g.components) > 0 and len(g) > 0:
 				badGlyphNames.append(g.name)
-			convert(g, self.maxDistanceValue, self.minLengthValue, self.useArcLength)
+			nbPts = convert(g, self.maxDistanceValue, self.minLengthValue, self.useArcLength)
+			nbPoints += nbPts
 			if (count % tenth) == 0: progressBar.update(text=u"Converting glyphs…")
 			count += 1
+		print nbPoints, "points created."
 		if badGlyphNames != []:
 			if len(badGlyphNames) == 1:
 				print "WARNING: The glyph '"+g.name+"' has at least one contour AND one component."
@@ -506,9 +547,9 @@ class InterfaceWindow(BaseWindowController):
 		if otherLayer: cur.flipLayers('foreground', layerToConvert)
 		copy = cur.copy()
 		if otherLayer: cur.flipLayers('foreground', layerToConvert)
-		convertedGlyph = convert(copy, self.maxDistanceValue, self.minLengthValue, self.useArcLength)
+		convert(copy, self.maxDistanceValue, self.minLengthValue, self.useArcLength)
 
-		for c in convertedGlyph:
+		for c in copy:
 			for p in c.points:
 				if p.type == 'offCurve':
 					color = OffColor
@@ -521,7 +562,7 @@ class InterfaceWindow(BaseWindowController):
 		stroke(0.2, .8, .8, 1)
 		fill(None)
 		strokeWidth(scale)
-		drawGlyph(convertedGlyph)
+		drawGlyph(copy)
 		restore()
 
 	def windowClosed(self, sender):
