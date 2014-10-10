@@ -298,21 +298,21 @@ def uniqueQuadraticWithSameTangentsAsCubic(cubic):
 	return (a, x, d)
 
 def hasGoodSmoothQuadraticApprox(cubic, dmax, minLength):
-	#quad = uniqueQuadraticWithSameTangentsAsCubic(cubic)
-	#return (QuadCubicDistance(quad, cubic) <= dmax, quad)
-	scaleddmax = dmax * 10.3923048454132637612
-	d0 = 0.5 * ((3.0 * cubic[1]) - cubic[0])
-	d1 = 0.5 * ((3.0 * cubic[2]) - cubic[3])
-	if (d0 - d1).length() > scaleddmax:
-		return (False, cubic)
-	A = 0.5 * (d0 + d1)
-	v = cubic[3] - cubic[0]
-	l = v.length()
-	if l < 1.0e-3:
-		return (False, cubic)
-	v = (1.0/l) * v
 	quad = uniqueQuadraticWithSameTangentsAsCubic(cubic)
-	return (abs(det2x2(A - quad[1], v)) <= 2.0 * dmax, quad)
+	return (QuadCubicDistance(quad, cubic) <= dmax, quad)
+	#scaleddmax = dmax * 10.3923048454132637612
+	#d0 = 0.5 * ((3.0 * cubic[1]) - cubic[0])
+	#d1 = 0.5 * ((3.0 * cubic[2]) - cubic[3])
+	#if (d0 - d1).length() > scaleddmax:
+	#	return (False, cubic)
+	#A = 0.5 * (d0 + d1)
+	#v = cubic[3] - cubic[0]
+	#l = v.length()
+	#if l < 1.0e-3:
+	#	return (False, cubic)
+	#v = (1.0/l) * v
+	#quad = uniqueQuadraticWithSameTangentsAsCubic(cubic)
+	#return (abs(det2x2(A - quad[1], v)) <= 2.0 * dmax, quad)
 
 def oneHasBadApprox(cubics, dmax, minLength):
 	quads = []
