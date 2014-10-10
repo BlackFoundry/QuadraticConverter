@@ -53,7 +53,7 @@ class Point(object):
 		return sqrt(self.squaredLength())
 
 def roundPair(p):
-	return round(p.x), round(p.y)
+	return int(round(p.x)), int(round(p.y))
 
 def lerp(t, a, b):
 	return (t * b) + ((1.0 - t) * a)
@@ -84,21 +84,21 @@ def solveQuadratic(a, b, c):
 		root1, root2 = root2, root1
 	return [root1, root2]
 
-def cardanMethod(p, q): # from Wikipedia
-	delta = - (4.0 * p*p*p + 27.0 * q*q)
-	sq = cmath.sqrt(-delta/27.0)
-	ubase = cmath.pow(0.5 * (+sq - q), 0.333333333333333)
-	vbase = cmath.pow(0.5 * (-sq - q), 0.333333333333333)
-	ts = []
-	j = cmath.exp(cmath.pi * 0.6666666666666666)
-	jup = 1	# 1  j  j^2
-	jdo = 1	# 1  j^-1  j^-2
-	if delta < 0.0: pass
-	for i in range(3):
-		t = jup*ubase + jdo*vbase
-		if abs(t.imag) < 1.0e-3 * abs(t.real): ts.append(t.real)
-		jup *= j
-		jdo /= j
+#def cardanMethod(p, q): # from Wikipedia
+#	delta = - (4.0 * p*p*p + 27.0 * q*q)
+#	sq = cmath.sqrt(-delta/27.0)
+#	ubase = cmath.pow(0.5 * (+sq - q), 0.333333333333333)
+#	vbase = cmath.pow(0.5 * (-sq - q), 0.333333333333333)
+#	ts = []
+#	j = cmath.exp(cmath.pi * 0.6666666666666666)
+#	jup = 1	# 1  j  j^2
+#	jdo = 1	# 1  j^-1  j^-2
+#	if delta < 0.0: pass
+#	for i in range(3):
+#		t = jup*ubase + jdo*vbase
+#		if abs(t.imag) < 1.0e-3 * abs(t.real): ts.append(t.real)
+#		jup *= j
+#		jdo /= j
 
 def solveCubic(a, b, c, d): # from Wikipedia
 	return rbt.solveCubic(a,b,c,d)
@@ -430,7 +430,7 @@ OffColor = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.2, .8, .8, 1)
 class InterfaceWindow(BaseWindowController):
 	def __init__(self):
 		BaseWindowController.__init__(self)
-		self.w = FloatingWindow((340, 230), 'Quadratic Converter')
+		self.w = FloatingWindow((340, 220), 'Quadratic Converter')
 		# ---------------------------
 		top = 10
 		self.w.maxDistanceTitle = TextBox((10, top, 100, 20), "Max Distance: ")
@@ -456,17 +456,17 @@ class InterfaceWindow(BaseWindowController):
 		# ---------------------------
 		top = 110
 		self.useArcLength = True
-		self.w.arclencheckbox = CheckBox((10, top, 90, 20), "Arc length", callback=self.arcLengthCheckBoxCallback, value=self.useArcLength)
+		#self.w.arclencheckbox = CheckBox((10, top, 90, 20), "Arc length", callback=self.arcLengthCheckBoxCallback, value=self.useArcLength)
 		self.calculatePreview = True
-		self.w.previewCheckBox = CheckBox((10, top+22, 70, 20), "Preview", callback=self.previewCheckBoxCallback, value=self.calculatePreview)
-		self.w.closeButton = SquareButton((120, top+1, 70, 42), "Close", callback=self.closeCallBack)
+		self.w.previewCheckBox = CheckBox((10, top, 70, 20), "Preview", callback=self.previewCheckBoxCallback, value=self.calculatePreview)
+		self.w.closeButton = SquareButton((120, top, 70, 20), "Close", callback=self.closeCallBack)
 		self.w.convertCurrentFont = Button((210, top, 120, 20), "Convert Font", callback=self.convertCurrentFontCallback)
-		self.w.convertCurrentGlyph = Button((210, top+22, 120, 20), "Convert Glyph", callback=self.convertCurrentGlyphCallback)
 		# ---------------------------
-		top = 160
+		top = 150
 		self.layers = ["foreground"]+CurrentFont().layerOrder
-		self.w.layerText = TextBox((10, top, 190, 20), "Layer (per-glyph conversion): ")
-		self.w.layerPopup = PopUpButton((200, top, 120, 20), self.layers, callback=self.arcLengthCheckBoxCallback)
+		self.w.layerText = TextBox((10, top, 120, 20), "Layer (per-glyph): ")
+		self.w.layerPopup = PopUpButton((130, top, 90, 20), self.layers, callback=self.arcLengthCheckBoxCallback)
+		self.w.convertCurrentGlyph = Button((225, top, 105, 20), "Convert Glyph", callback=self.convertCurrentGlyphCallback)
 		# ---------------------------
 		self.w.infoText = TextBox((10, -38, -10, 34), "WARNING. Un-saved modifications in a UFO will not be converted.")
 		# ---------------------------
