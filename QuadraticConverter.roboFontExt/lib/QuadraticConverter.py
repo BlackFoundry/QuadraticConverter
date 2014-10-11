@@ -162,11 +162,12 @@ def splitCubicAtParams(cubic, ts):
 		prev_t = ts[i]
 	return c_list
 
-def splitCubicOnInflection(cubic):
+def splitCubicOnInflection(cubic, minLength):
 	"""Splits a cubic bezier at inflection points.
 	
 	Returns one, two or three cubic bezier, in a list."""
-
+	if lengthOfCubic(cubic) <= minLength:
+		return [cubic]
 	# if the two antennas are on the same side, we don't add the
 	# inflection point (might be dangerous, we'll see in time...)
 	if det2x2(cubic[1]-cubic[0], cubic[3]-cubic[0]) * det2x2(cubic[0]-cubic[3], cubic[2]-cubic[3]) >= 0.0:
@@ -388,7 +389,7 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 				pt2 = Point(p2.x, p2.y)
 				pt3 = Point(p3.x, p3.y)
 				qsegs = []
-				for cubic in splitCubicOnInflection((pt0, pt1, pt2, pt3)):
+				for cubic in splitCubicOnInflection((pt0, pt1, pt2, pt3), minLength):
 					qsegs = qsegs + adaptiveSmoothCubicSplit(cubic, maxDistance, minLength, useArcLength)
 				nbQSegMinusOne = len(qsegs) - 1
 				smooth = True
