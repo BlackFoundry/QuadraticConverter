@@ -53,6 +53,7 @@ class Point(object):
 		return sqrt(self.squaredLength())
 
 def roundPair(p):
+	#return p.x, p.y
 	return int(round(p.x)), int(round(p.y))
 
 def lerp(t, a, b):
@@ -66,7 +67,7 @@ def dot(a, b):
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-eps = 1.0e-6
+eps = 1.0e-5
 
 def solveQuadratic(a, b, c):
 	if abs(a) < eps:
@@ -81,7 +82,7 @@ def solveQuadratic(a, b, c):
 	root1 = ( - b - disc ) / (2.0 * a)
 	root2 = ( - b + disc ) / (2.0 * a)
 	if root2 < root1:
-		root1, root2 = root2, root1
+		return [root2, root1]
 	return [root1, root2]
 
 #def cardanMethod(p, q): # from Wikipedia
@@ -110,7 +111,10 @@ def solveCubic(a, b, c, d): # from Wikipedia
 	#if zs = None: return None
 	#return [z-offset for z in zs]
 
-def cubicInflectionParam((p1, c1, c2, p2)):
+def cubicPolyCoeffs((a,b,c,d)):
+	return 3.0*(b-a), 3.0*(c - 2.0*b + a), d + 3.0*(b - c) - a
+
+def cubicInflectionParams((p1, c1, c2, p2)):
 	"""Returns the parameter value(s) of inflection points, if any.
 
 	Many thanks to Adrian Colomitchi.
@@ -173,7 +177,7 @@ def splitCubicOnInflection(cubic, minLength):
 	if det2x2(cubic[1]-cubic[0], cubic[3]-cubic[0]) * det2x2(cubic[0]-cubic[3], cubic[2]-cubic[3]) >= 0.0:
 		return [cubic]
 
-	t = cubicInflectionParam(cubic)
+	t = cubicInflectionParams(cubic)
 	if t == []:
 		return [cubic]
 	cub0, tempcubic = splitCubic(t[0], cubic)
@@ -182,6 +186,166 @@ def splitCubicOnInflection(cubic, minLength):
 	t2 = (t[1] - t[0]) / (1.0 - t[0])
 	cub1, cub2 = splitCubic(t2, tempcubic)
 	return [cub0, cub1, cub2]
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+def positiveHitInterval((a,b,c,d)):
+	bc = c-b
+	ab = b-a
+	other = d - 3.0 * c + 2.0 * b
+	denom = det2x2(ab, other)
+	if abs(denom) < eps: return []
+	ret = ( - 2.0 * det2x2(ab, bc) ) / denom
+	if ret <= eps or ret >= 1.0-eps: return []
+	return [ret]
+
+def tangentCrossing(cubic):
+	c1,c2,c3 = cubicPolyCoeffs(cubic)
+	A = det2x2(c2,c3)
+	B = 2.0 * det2x2(c1,c3)
+	C = det2x2(c1,c2)
+	return [t for t in solveQuadratic(A, B, C) if (t>=eps) and (t<=1.0-eps)]
+
+def makeIntervals(evts):
+	if evts == []: return [(0.0, 1.0)]
+	evts.sort()
+	left = 0.0
+	intervals = []
+	for e in evts:
+		if left >= 0.0:
+			intervals.append((left, e))
+			left = -1.0
+		else:
+			left = e
+	if left >= 0.0 and left < 1.0:
+		intervals.append((left, 1.0))
+	return intervals
+
+def intersectIntervals(left, right):
+	if left == []: return []
+	if right == []: return []
+	l0, l1 = left[0]
+	r0, r1 = right[0]
+	if l1 < r1: # l0,l1 will disappear
+		rest = intersectIntervals(left[1:], right)
+	else:
+		rest = intersectIntervals(left, right[1:])
+	inter = max(l0,r0), min(l1,r1)
+	if inter[0] > inter[1]: return rest
+	return [inter]+rest
+
+def tangentRatioAt(cubic, T):
+	debug = False#(cubic[0].x == 7.0)
+	if debug:
+		print T, cubic
+	(l0, l1, l2, l3), (r3, r2, r1, r0) = splitCubic(T, cubic)
+	u = det2x2(l1-l0, l2-l3)
+	if abs(u) < eps:
+		a = l0
+	else:
+		t = - det2x2(l0-l2, l2-l3) / u
+		a = l0 + ( t * (l1-l0) )
+	left_len = (a-l3).length()
+	u = det2x2(r1-r0, r2-r3)
+	if abs(u) < eps:
+		b = r0
+	else:
+		if debug:
+			print "u", u
+		v = det2x2(r0-r2, r2-r3)
+		if debug:
+			print "-v", -v
+		t = - v / u
+		b = r0 + ( t * (r1-r0) )
+		if debug:
+			print "b", b
+			print "r3", r3
+	right_len = (b-r3).length()
+	if T < 1.0:
+		if debug:
+			print left_len, right_len
+		if right_len > eps:
+			return (left_len / right_len - 1.0, T, a, b)
+	return (sys.float_info.max, T, a, b)
+
+def sign(f):
+	if f > 0.0: return 1
+	if f == 0.0: return 0
+	return -1
+
+def findZeroAux(cubic, tLeft, ratLeft, tRight, ratRight):
+	tMid = 0.5 * ( tLeft + tRight )
+	midRat = tangentRatioAt(cubic, tMid)
+	if abs(midRat[0]) < 0.001: return midRat
+	if abs(tLeft-tRight) < 0.0001: return midRat
+	if sign(ratLeft[0]) == sign(midRat[0]):
+		return findZeroAux(cubic, tMid, midRat, tRight, ratRight)
+	else:
+		return findZeroAux(cubic, tLeft, ratLeft, tMid, midRat)
+
+def findZero(cubic, left, right):
+	debug = False# cubic[0].x == 7.0
+	if debug:
+		print "Finding zero in Interval <",
+		print left, right, ">"
+	ratLeft = tangentRatioAt(cubic, left)
+	ratRight = tangentRatioAt(cubic, right)
+	#if left == 0.0: print "T==0 :", ratLeft
+	#if right == 1.0: print "T==1 :", ratRight
+	if abs(ratLeft[0]) < 0.001: return ratLeft
+	if abs(ratRight[0]) < 0.001: return ratRight
+	if sign(ratLeft[0]) != sign(ratRight[0]):
+		return findZeroAux(cubic, left, ratLeft, right, ratRight)
+	else: return None
+
+def coolQuad(cubic):
+	(a,b,c,d) = cubic
+	ab = b-a
+	bc = c-b
+	cd = d-c
+	lab = ab.squaredLength()
+	lcd = cd.squaredLength()
+	if lab < 0.1:
+		if lcd < 0.1:
+			#print """I found a cubic segment that has two handles of length zero;
+			#You might want to turn it into a simple line."""
+			return splitQuadratic(0.5, (a, 0.5*(a+d), d))
+		else:
+			return splitQuadratic(0.5, (a, c, d))
+	else:
+		if lcd < 0.1: return splitQuadratic(0.5, (a, b, d))
+	
+	if det2x2(ab,bc) == 0 and det2x2(bc,cd) == 0:
+		mid = 0.5 * (b+c)
+		return ((a,b,mid),(mid,c,d))
+
+	hi = positiveHitInterval(cubic) + tangentCrossing(cubic)
+	reverse = (d,c,b,a)
+	lo = positiveHitInterval(reverse) + tangentCrossing(reverse)
+	his = makeIntervals(hi)
+	los = makeIntervals(lo)
+	los.reverse()
+	los = [(1.0-b, 1.0-a) for (a,b) in los]
+	intervals = intersectIntervals(his, los)
+	debug = False#cubic[0].x == 7.0
+	if debug:
+		print "\nIntervals"
+		print intervals
+	sols = []
+	for l, r in intervals:
+		d = (r-l) / 200.0
+		sols.append(findZero(cubic, l+d, r-d))
+	sols = [(abs(s[1]-0.5), s) for s in sols if s != None]
+	if sols == []:
+		rat, t, a, b = tangentRatioAt(cubic, 0.5)
+		mid = splitCubic(0.5, cubic)[0][3]
+		return (cubic[0], a, mid), (mid, b, cubic[3])
+	sols.sort()
+	sol = sols[0][1]
+	if debug:
+		print sol
+	mid = 0.5 * ( sol[2] + sol[3] )
+	return (cubic[0], sol[2], mid), (mid, sol[3], cubic[3])
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -202,7 +366,14 @@ def distanceToQuadratic(m, quad):
 
 def QuadCubicDistance(quad, cubic):
 	ts = [0.2, 0.4, 0.5, 0.6, 0.8]
-	return max([distanceToQuadratic(splitCubic(t, cubic)[0][3], quad) for t in ts])
+	d = [distanceToQuadratic(splitCubic(t, cubic)[0][3], quad) for t in ts]
+	return max(d)
+
+def TwoQuadsCubicDistance(q1, q2, cubic):
+	ts = [0.2, 0.4, 0.5, 0.6, 0.8]
+	pts = [splitCubic(t, cubic)[0][3] for t in ts]
+	d = [min(distanceToQuadratic(p, q1), distanceToQuadratic(p, q2)) for p in pts]
+	return max(d)
 
 def lengthOfCubic(cubic, err = 1.0):
 	l03 = (cubic[0]-cubic[3]).length()
@@ -299,21 +470,10 @@ def uniqueQuadraticWithSameTangentsAsCubic(cubic):
 	return (a, x, d)
 
 def hasGoodSmoothQuadraticApprox(cubic, dmax, minLength):
-	quad = uniqueQuadraticWithSameTangentsAsCubic(cubic)
-	return (QuadCubicDistance(quad, cubic) <= dmax, quad)
-	#scaleddmax = dmax * 10.3923048454132637612
-	#d0 = 0.5 * ((3.0 * cubic[1]) - cubic[0])
-	#d1 = 0.5 * ((3.0 * cubic[2]) - cubic[3])
-	#if (d0 - d1).length() > scaleddmax:
-	#	return (False, cubic)
-	#A = 0.5 * (d0 + d1)
-	#v = cubic[3] - cubic[0]
-	#l = v.length()
-	#if l < 1.0e-3:
-	#	return (False, cubic)
-	#v = (1.0/l) * v
+	q1, q2 = coolQuad(cubic)
+	return (TwoQuadsCubicDistance(q1, q2, cubic) <= dmax, (q1,q2))
 	#quad = uniqueQuadraticWithSameTangentsAsCubic(cubic)
-	#return (abs(det2x2(A - quad[1], v)) <= 2.0 * dmax, quad)
+	#return (QuadCubicDistance(quad, cubic) <= dmax, quad)
 
 def oneHasBadApprox(cubics, dmax, minLength):
 	quads = []
@@ -343,7 +503,7 @@ def adaptiveSmoothCubicSplit(cubic, dmax, minLength, useArcLength):
 			cubics = splitCubicParamUniformly(cubic, n)
 		(badApprox, quads) = oneHasBadApprox(cubics, dmax, minLength)
 	if badApprox:
-		return [uniqueQuadraticWithSameTangentsAsCubic(c) for c in cubics]
+		return [coolQuad(c) for c in cubics]
 	else:
 		return quads
 
@@ -389,7 +549,8 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 				pt2 = Point(p2.x, p2.y)
 				pt3 = Point(p3.x, p3.y)
 				qsegs = []
-				for cubic in splitCubicOnInflection((pt0, pt1, pt2, pt3), minLength):
+				inputCubic = (pt0, pt1, pt2, pt3)
+				for cubic in splitCubicOnInflection(inputCubic, minLength):
 					qsegs = qsegs + adaptiveSmoothCubicSplit(cubic, maxDistance, minLength, useArcLength)
 				nbQSegMinusOne = len(qsegs) - 1
 				smooth = True
@@ -399,9 +560,12 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 					# then it would suffice to write something like:
 					#	(a0, a1, a2) = qseg
 					#	cmds.append((curveto, (a1, a2)))
-					ql, qr = splitQuadratic(0.5, qseg)
+
 					if i == nbQSegMinusOne: smooth = seg.smooth
-					cmds.append((curveto, (ql[1], qr[1], qr[2], smooth)))
+					q1, q2 = qseg
+					cmds.append((curveto, (q1[1], q2[1], q2[2], smooth)))
+					#ql, qr = splitQuadratic(0.5, qseg)
+					#cmds.append((curveto, (ql[1], qr[1], qr[2], smooth)))
 					nbPoints += 3
 				p0 = p3
 			else:
@@ -571,14 +735,18 @@ class InterfaceWindow(BaseWindowController):
 		UpdateCurrentGlyphView()
 
 	def maxDistanceSliderCallback(self, sender):
+		old = self.maxDistanceValue
 		self.maxDistanceValue = round(exp(sender.get()), 3)
 		self.w.maxDistanceValueText.set(self.maxDistanceValue)
-		UpdateCurrentGlyphView()
+		if old != self.maxDistanceValue:
+			UpdateCurrentGlyphView()
 
 	def minLengthSliderCallback(self, sender):
+		old = self.minLengthValue
 		self.minLengthValue = int(round(sender.get(), 0))
 		self.w.minLengthValueText.set(self.minLengthValue)
-		UpdateCurrentGlyphView()
+		if old != self.minLengthValue:
+			UpdateCurrentGlyphView()
 
 	def arcLengthCheckBoxCallback(self, sender):
 		self.useArcLength = sender.get()
