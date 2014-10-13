@@ -8,6 +8,8 @@ It might be installed manually ([download](https://github.com/sansplomb/Quadrati
 
 ## Changes
 
+- **0.7**
+  - Improved the low-level approximation technique. This results in **much** fewer generated control points
 - **0.6.2**
   - Improved sensitivity of the closeness of a quadratic and a cubic curve. This lowers the number of control points required for given precision
 - **0.6.1**
