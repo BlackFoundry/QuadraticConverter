@@ -61,9 +61,6 @@ def lerp(t, a, b):
 def det2x2(a, b):
 	return a.x * b.y - a.y * b.x
 
-def dot(a, b):
-	return (a.x * b.x + a.y * b.y)
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 eps = 1.0e-5
@@ -83,32 +80,6 @@ def solveQuadratic(a, b, c):
 	if root2 < root1:
 		return [root2, root1]
 	return [root1, root2]
-
-#def cardanMethod(p, q): # from Wikipedia
-#	delta = - (4.0 * p*p*p + 27.0 * q*q)
-#	sq = cmath.sqrt(-delta/27.0)
-#	ubase = cmath.pow(0.5 * (+sq - q), 0.333333333333333)
-#	vbase = cmath.pow(0.5 * (-sq - q), 0.333333333333333)
-#	ts = []
-#	j = cmath.exp(cmath.pi * 0.6666666666666666)
-#	jup = 1	# 1  j  j^2
-#	jdo = 1	# 1  j^-1  j^-2
-#	if delta < 0.0: pass
-#	for i in range(3):
-#		t = jup*ubase + jdo*vbase
-#		if abs(t.imag) < 1.0e-3 * abs(t.real): ts.append(t.real)
-#		jup *= j
-#		jdo /= j
-
-def solveCubic(a, b, c, d): # from Wikipedia
-	return rbt.solveCubic(a,b,c,d)
-	#if abs(a) < eps: return solveQuadratic(b, c, d)
-	#offset = b/(3.0*a)
-	#p = (c - b*offset)/a
-	#q = 2.0*offset*offset*offset + (d - offset*c)/a
-	#zs = cardanMethod(p, q)
-	#if zs = None: return None
-	#return [z-offset for z in zs]
 
 def cubicPolyCoeffs((a,b,c,d)):
 	return 3.0*(b-a), 3.0*(c - 2.0*b + a), d + 3.0*(b - c) - a
@@ -188,7 +159,7 @@ def splitCubicOnInflection(cubic, minLength):
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-def positiveHitInterval((a,b,c,d)):
+def paramForTangentParallelToFirstAntenna((a,b,c,d)):
 	bc = c-b
 	ab = b-a
 	other = d - 3.0 * c + 2.0 * b
@@ -198,7 +169,7 @@ def positiveHitInterval((a,b,c,d)):
 	if ret <= eps or ret >= 1.0-eps: return []
 	return [ret]
 
-def tangentCrossing(cubic):
+def paramForTangentThroughA(cubic):
 	c1,c2,c3 = cubicPolyCoeffs(cubic)
 	A = det2x2(c2,c3)
 	B = 2.0 * det2x2(c1,c3)
@@ -232,6 +203,16 @@ def intersectIntervals(left, right):
 	inter = max(l0,r0), min(l1,r1)
 	if inter[0] > inter[1]: return rest
 	return [inter]+rest
+
+def splitIntervalsAtT(intervals, T):
+	newint = []
+	for (l,r) in intervals:
+		if l < T and T < r:
+			newint.append((l,T))
+			newint.append((T,r))
+		else:
+			newint.append((l,r))
+	return newint
 
 debug_X = 999999.0
 
@@ -289,16 +270,6 @@ def findZero(cubic, left, right):
 		return findZeroAux(cubic, left, ratLeft, right, ratRight)
 	else: return None
 
-def splitIntervalsAtT(intervals, T):
-	newint = []
-	for (l,r) in intervals:
-		if l < T and T < r:
-			newint.append((l,T))
-			newint.append((T,r))
-		else:
-			newint.append((l,r))
-	return newint
-
 def coolQuad(cubic):
 	(a,b,c,d) = cubic
 	ab = b-a
@@ -320,11 +291,8 @@ def coolQuad(cubic):
 		mid = 0.5 * (a+d)
 		return splitQuadratic(0.5, (a, mid, d))
 
-	hi = positiveHitInterval(cubic) + tangentCrossing(cubic)
-	reverse = (d,c,b,a)
-	lo = positiveHitInterval(reverse) + tangentCrossing(reverse)
-	his = makeIntervals(hi)
-	los = makeIntervals(lo)
+	his,los = [makeIntervals(paramForTangentParallelToFirstAntenna(cub) + paramForTangentThroughA(cub))
+			for cub in [cubic, (d,c,b,a)]]
 	los.reverse()
 	los = [(1.0-b, 1.0-a) for (a,b) in los]
 	intervals = intersectIntervals(his, los)
@@ -346,8 +314,8 @@ def coolQuad(cubic):
 	if debug:
 		print sol
 	mid = 0.5 * ( sol[2] + sol[3] )
-	shortAntenna = ((cubic[0]-sol[2]).squaredLength() <= 9.0 or
-		(cubic[3]-sol[3]).squaredLength() <= 9.0)
+	#shortAntenna = ((cubic[0]-sol[2]).squaredLength() <= 9.0 or
+	#	(cubic[3]-sol[3]).squaredLength() <= 9.0)
 	#if shortAntenna: print "SHORT ANTENNA"
 	return (cubic[0], sol[2], mid), (mid, sol[3], cubic[3])
 
@@ -360,11 +328,11 @@ def distanceToQuadratic(m, quad):
 	B = p2 - p1 - A
 	# coeffs of third degree polynomial
 	a = B.squaredLength()
-	b = 3.0 * dot(A, B)
+	b = 3.0 * (A | B)
 	mp = p0 - m
-	c = 2.0 * A.squaredLength() + dot(mp, B)
-	d = dot(mp, A)
-	pts = [splitQuadratic(t, quad)[0][2] for t in solveCubic(a,b,c,d) if (t>=eps) and (t<=1.0-eps)]
+	c = 2.0 * A.squaredLength() + (mp | B)
+	d = (mp | A)
+	pts = [splitQuadratic(t, quad)[0][2] for t in rbt.solveCubic(a,b,c,d) if (t>=eps) and (t<=1.0-eps)]
 	dists = [(m-p).length() for p in (pts+[p0,p2])]
 	return min(dists)
 
@@ -476,8 +444,6 @@ def uniqueQuadraticWithSameTangentsAsCubic(cubic):
 def hasGoodSmoothQuadraticApprox(cubic, dmax, minLength):
 	q1, q2 = coolQuad(cubic)
 	return (TwoQuadsCubicDistance(q1, q2, cubic) <= dmax, (q1,q2))
-	#quad = uniqueQuadraticWithSameTangentsAsCubic(cubic)
-	#return (QuadCubicDistance(quad, cubic) <= dmax, quad)
 
 def oneHasBadApprox(cubics, dmax, minLength):
 	quads = []
@@ -605,12 +571,13 @@ class InterfaceWindow(BaseWindowController):
 		self.w.maxDistanceTitle = TextBox((10, top, 100, 20), "Max Distance: ")
 		minMaxDist  = 0.01
 		maxMaxDist  = 10.0
-		initMaxDist = 1.0
-		self.maxDistanceValue = initMaxDist
-		self.w.maxDistanceValueText = TextBox((110, top, -10, 22), str(initMaxDist))
+		self.initMaxDist = 1.0
+		self.maxDistanceValue = self.initMaxDist
+		self.w.maxDistanceValueText = TextBox((110, top, -90, 22), str(self.initMaxDist))
+		self.w.maxDistanceResetButton = Button((-80, top, -10, 22), "Reset", callback=self.maxDistanceResetCallback)
 		self.w.maxDistanceSlider = Slider( (10, top+20, -10, 20),
 				minValue=log(minMaxDist), maxValue=log(maxMaxDist),
-				value=log(initMaxDist), callback=self.maxDistanceSliderCallback )
+				value=log(self.initMaxDist), callback=self.maxDistanceSliderCallback )
 		# ---------------------------
 		top = 60
 		self.w.minLengthTitle = TextBox((10, top, 150, 20), "Min Segment Length: ")
@@ -628,7 +595,7 @@ class InterfaceWindow(BaseWindowController):
 		#self.w.arclencheckbox = CheckBox((10, top, 90, 20), "Arc length", callback=self.arcLengthCheckBoxCallback, value=self.useArcLength)
 		self.calculatePreview = True
 		self.w.previewCheckBox = CheckBox((10, top, 70, 20), "Preview", callback=self.previewCheckBoxCallback, value=self.calculatePreview)
-		self.w.closeButton = SquareButton((120, top, 70, 20), "Close", callback=self.closeCallBack)
+		self.w.closeButton = Button((120, top, 70, 20), "Close", callback=self.closeCallBack)
 		self.w.convertCurrentFont = Button((210, top, 120, 20), "Convert Font", callback=self.convertCurrentFontCallback)
 		# ---------------------------
 		top = 150
@@ -738,12 +705,19 @@ class InterfaceWindow(BaseWindowController):
 		removeObserver(self, "draw")
 		UpdateCurrentGlyphView()
 
-	def maxDistanceSliderCallback(self, sender):
+	def updateMaxDistance(self, newmax):
 		old = self.maxDistanceValue
-		self.maxDistanceValue = round(exp(sender.get()), 3)
-		self.w.maxDistanceValueText.set(self.maxDistanceValue)
-		if old != self.maxDistanceValue:
+		self.maxDistanceValue = newmax
+		self.w.maxDistanceValueText.set(newmax)
+		if old != newmax:
 			UpdateCurrentGlyphView()
+
+	def maxDistanceResetCallback(self, sender):
+		self.w.maxDistanceSlider.set(log(self.initMaxDist))
+		self.updateMaxDistance(self.initMaxDist)
+
+	def maxDistanceSliderCallback(self, sender):
+		self.updateMaxDistance(round(exp(sender.get()), 3))
 
 	def minLengthSliderCallback(self, sender):
 		old = self.minLengthValue
