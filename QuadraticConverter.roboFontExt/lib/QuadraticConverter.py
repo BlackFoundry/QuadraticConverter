@@ -53,7 +53,6 @@ class Point(object):
 		return sqrt(self.squaredLength())
 
 def roundPair(p):
-	#return p.x, p.y
 	return int(round(p.x)), int(round(p.y))
 
 def lerp(t, a, b):
@@ -234,10 +233,10 @@ def intersectIntervals(left, right):
 	if inter[0] > inter[1]: return rest
 	return [inter]+rest
 
+debug_X = 999999.0
+
 def tangentRatioAt(cubic, T):
-	debug = False#(cubic[0].x == 7.0)
-	if debug:
-		print T, cubic
+	debug = (cubic[0].x == debug_X)
 	(l0, l1, l2, l3), (r3, r2, r1, r0) = splitCubic(T, cubic)
 	u = det2x2(l1-l0, l2-l3)
 	if abs(u) < eps:
@@ -250,23 +249,17 @@ def tangentRatioAt(cubic, T):
 	if abs(u) < eps:
 		b = r0
 	else:
-		if debug:
-			print "u", u
 		v = det2x2(r0-r2, r2-r3)
-		if debug:
-			print "-v", -v
 		t = - v / u
 		b = r0 + ( t * (r1-r0) )
-		if debug:
-			print "b", b
-			print "r3", r3
 	right_len = (b-r3).length()
+	retval = (sys.float_info.max, T, a, b)
 	if T < 1.0:
-		if debug:
-			print left_len, right_len
 		if right_len > eps:
-			return (left_len / right_len - 1.0, T, a, b)
-	return (sys.float_info.max, T, a, b)
+			retval = (left_len / right_len - 1.0, T, a, b)
+	if debug:
+		print "ratio", retval[0], "at", retval[1]
+	return retval
 
 def sign(f):
 	if f > 0.0: return 1
@@ -284,19 +277,27 @@ def findZeroAux(cubic, tLeft, ratLeft, tRight, ratRight):
 		return findZeroAux(cubic, tLeft, ratLeft, tMid, midRat)
 
 def findZero(cubic, left, right):
-	debug = False# cubic[0].x == 7.0
+	debug = cubic[0].x == debug_X
 	if debug:
-		print "Finding zero in Interval <",
+		print " ***** Finding zero in Interval <",
 		print left, right, ">"
 	ratLeft = tangentRatioAt(cubic, left)
 	ratRight = tangentRatioAt(cubic, right)
-	#if left == 0.0: print "T==0 :", ratLeft
-	#if right == 1.0: print "T==1 :", ratRight
 	if abs(ratLeft[0]) < 0.001: return ratLeft
 	if abs(ratRight[0]) < 0.001: return ratRight
 	if sign(ratLeft[0]) != sign(ratRight[0]):
 		return findZeroAux(cubic, left, ratLeft, right, ratRight)
 	else: return None
+
+def splitIntervalsAtT(intervals, T):
+	newint = []
+	for (l,r) in intervals:
+		if l < T and T < r:
+			newint.append((l,T))
+			newint.append((T,r))
+		else:
+			newint.append((l,r))
+	return newint
 
 def coolQuad(cubic):
 	(a,b,c,d) = cubic
@@ -316,8 +317,8 @@ def coolQuad(cubic):
 		if lcd < 0.1: return splitQuadratic(0.5, (a, b, d))
 	
 	if det2x2(ab,bc) == 0 and det2x2(bc,cd) == 0:
-		mid = 0.5 * (b+c)
-		return ((a,b,mid),(mid,c,d))
+		mid = 0.5 * (a+d)
+		return splitQuadratic(0.5, (a, mid, d))
 
 	hi = positiveHitInterval(cubic) + tangentCrossing(cubic)
 	reverse = (d,c,b,a)
@@ -327,24 +328,27 @@ def coolQuad(cubic):
 	los.reverse()
 	los = [(1.0-b, 1.0-a) for (a,b) in los]
 	intervals = intersectIntervals(his, los)
-	debug = False#cubic[0].x == 7.0
+	for t in cubicInflectionParams(cubic):
+		intervals = splitIntervalsAtT(intervals, t)
+	debug = cubic[0].x == debug_X
 	if debug:
-		print "\nIntervals"
+		print "\nIntervals for", cubic
 		print intervals
 	sols = []
 	for l, r in intervals:
-		d = (r-l) / 200.0
-		sols.append(findZero(cubic, l+d, r-d))
-	sols = [(abs(s[1]-0.5), s) for s in sols if s != None]
+		d = 0.0#(r-l) / 10000.0
+		s = findZero(cubic, l+d, r-d)
+		if s != None: sols.append((abs(s[1]-0.5), s))
 	if sols == []:
-		rat, t, a, b = tangentRatioAt(cubic, 0.5)
-		mid = splitCubic(0.5, cubic)[0][3]
-		return (cubic[0], a, mid), (mid, b, cubic[3])
+		return splitQuadratic(0.5, uniqueQuadraticWithSameTangentsAsCubic(cubic))
 	sols.sort()
 	sol = sols[0][1]
 	if debug:
 		print sol
 	mid = 0.5 * ( sol[2] + sol[3] )
+	shortAntenna = ((cubic[0]-sol[2]).squaredLength() <= 9.0 or
+		(cubic[3]-sol[3]).squaredLength() <= 9.0)
+	#if shortAntenna: print "SHORT ANTENNA"
 	return (cubic[0], sol[2], mid), (mid, sol[3], cubic[3])
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
