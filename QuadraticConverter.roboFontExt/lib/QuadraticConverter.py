@@ -69,17 +69,15 @@ def solveQuadratic(a, b, c):
 	if abs(a) < eps:
 		if abs(b) < eps: return []
 		return [- c / b]
-	disc = b * b - 4.0 * a * c
+	b /= 2.0
+	disc = b * b - a * c
 	if disc < 0.0: return []
-	if disc < eps:
-		t = - b / (2.0 * a)
-		return [t, t]
-	disc = sqrt(disc)
-	root1 = ( - b - disc ) / (2.0 * a)
-	root2 = ( - b + disc ) / (2.0 * a)
-	if root2 < root1:
-		return [root2, root1]
-	return [root1, root2]
+	if b < 0.0:	q = - (b - sqrt(disc))
+	else:		q = - (b + sqrt(disc))
+	x1 = q / a
+	x2 = c / q
+	if x1 > x2: return [x2, x1]
+	else:		return [x1, x2]
 
 def cubicPolyCoeffs((a,b,c,d)):
 	return 3.0*(b-a), 3.0*(c - 2.0*b + a), d + 3.0*(b - c) - a
