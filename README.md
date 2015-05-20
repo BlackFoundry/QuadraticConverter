@@ -8,6 +8,8 @@ It might be installed manually ([download](https://github.com/sansplomb/Quadrati
 
 ## Changes
 
+- **0.7.1**
+  - Fixed crash when the font has less than 20 glyphs
 - **0.7**
   - Improved the low-level approximation technique. This results in **much** fewer generated control points
 - **0.6.2**

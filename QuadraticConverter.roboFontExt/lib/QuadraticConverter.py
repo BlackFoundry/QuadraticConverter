@@ -632,7 +632,7 @@ class InterfaceWindow(BaseWindowController):
 		nf.lib['com.typemytype.robofont.segmentType'] = 'qcurve'
 		if f.path != None: progressBar.setTickCount(21)
 		else: progressBar.setTickCount(20)
-		tenth = int(len(nf)/20)
+		tenth = max(1, int(len(nf)/20))
 		count = 0
 		nbPoints = 0
 		badGlyphNames = []
