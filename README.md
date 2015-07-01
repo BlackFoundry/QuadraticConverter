@@ -6,6 +6,8 @@
 
 It might be installed manually ([download](https://github.com/sansplomb/QuadraticConverter/archive/master.zip) and double-click) or automatically with [*RoboFont Mechanic*](http://www.robofontmechanic.com).
 
+Copyright (c) 2015, Samuel Hornus and Jérémie Hornus
+
 ## Changes
 
 - **0.7.1**
