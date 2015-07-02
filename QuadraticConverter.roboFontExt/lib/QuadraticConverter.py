@@ -218,7 +218,7 @@ def intersectIntervals(left, right):
 	if right == []: return []
 	l0, l1 = left[0]
 	r0, r1 = right[0]
-	if l1 < r1: # l0,l1 will disappear
+	if l1 < r1: # l0,l1 will disappear first
 		rest = intersectIntervals(left[1:], right)
 	else:
 		rest = intersectIntervals(left, right[1:])
@@ -623,7 +623,7 @@ class InterfaceWindow(BaseWindowController):
 		top = 150
 		self.layers = ["foreground"]+CurrentFont().layerOrder
 		self.w.layerText = TextBox((10, top, 120, 20), "Layer (per-glyph): ")
-		self.w.layerPopup = PopUpButton((130, top, 90, 20), self.layers, callback=self.arcLengthCheckBoxCallback)
+		self.w.layerPopup = PopUpButton((130, top, 90, 20), self.layers)#, callback=self.arcLengthCheckBoxCallback)
 		self.w.convertCurrentGlyph = Button((225, top, 105, 20), "Convert Glyph", callback=self.convertCurrentGlyphCallback)
 		# ---------------------------
 		self.w.infoText = TextBox((10, -38, -10, 34), "WARNING. Un-saved modifications in a UFO will not be converted.")
@@ -748,9 +748,9 @@ class InterfaceWindow(BaseWindowController):
 		if old != self.minLengthValue:
 			UpdateCurrentGlyphView()
 
-	def arcLengthCheckBoxCallback(self, sender):
-		self.useArcLength = sender.get()
-		UpdateCurrentGlyphView()
+	#def arcLengthCheckBoxCallback(self, sender):
+	#	self.useArcLength = sender.get()
+	#	UpdateCurrentGlyphView()
 
 	def previewCheckBoxCallback(self, sender):
 		self.calculatePreview = sender.get()

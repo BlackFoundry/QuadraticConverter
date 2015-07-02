@@ -10,6 +10,8 @@ Copyright (c) 2015, Samuel Hornus and Jérémie Hornus
 
 ## Changes
 
+- **0.7.2**
+  - Fixed potential weird behavior when cubic source layer is chosen in the popup button (UI bug)
 - **0.7.1**
   - Fixed crash when the font has less than 20 glyphs
 - **0.7**
