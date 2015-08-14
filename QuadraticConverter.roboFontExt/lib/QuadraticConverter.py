@@ -96,8 +96,8 @@ def solveQuadratic(a, b, c):
 	b /= 2.0
 	disc = b * b - a * c
 	if disc < 0.0: return []
-	if b < 0.0:	q = - (b - sqrt(disc))
-	else:		q = - (b + sqrt(disc))
+	if b < 0.0:	q = - (b - sqrt(disc)) # q > 0
+	else:		q = - (b + sqrt(disc)) # q < 0
 	x1 = q / a
 	x2 = c / q
 	if x1 > x2: return [x2, x1]
@@ -508,14 +508,15 @@ def getFirstOnPoint(contour):
 	return contour[-1].points[-1]
 
 def lineto(pen, p):
-	pen.addPoint(roundPair(p), segmentType='line',	smooth=False)
+	pen.addPoint(roundPair(p), segmentType='line', smooth=False)
 
 def curveto(pen, (a, b, p, s)):
 	pen.addPoint(roundPair(a), segmentType=None,	smooth=False)
 	pen.addPoint(roundPair(b), segmentType=None,	smooth=False)
-	pen.addPoint(roundPair(p), segmentType='qcurve',	smooth=s)
+	pen.addPoint(roundPair(p), segmentType='qcurve', smooth=s)
 
 def convert(glyph, maxDistance, minLength, useArcLength):
+	originalNumPoints = 0
 	nbPoints = 0
 	conts = []
 	for contour in glyph:
@@ -527,6 +528,7 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 		for s in range(nseg):
 			seg = contour[s]
 			if seg.type == 'line':
+				originalNumPoints += 1
 				p1 = seg.points[0]
 				cmds.append((lineto, p1))
 				nbPoints += 1
@@ -535,6 +537,7 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 				#print "Should not have quadratic segment in here. Skipping.",
 				p0 = seg.points[-1]
 			elif seg.type == 'curve':
+				originalNumPoints += 3
 				p1, p2, p3 = seg.points
 				pt0 = Point(p0.x, p0.y)
 				pt1 = Point(p1.x, p1.y)
@@ -577,7 +580,7 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 	for contour in glyph:
 		contour.setStartSegment(0)
 	glyph.update()
-	return nbPoints
+	return originalNumPoints, nbPoints
 
 # - - - - - - - - - - - - - - - - -
 
@@ -658,6 +661,7 @@ class InterfaceWindow(BaseWindowController):
 		else: progressBar.setTickCount(20)
 		tenth = max(1, int(len(nf)/20))
 		count = 0
+		nbCubicPoints = 0
 		nbPoints = 0
 		badGlyphNames = []
 		for g in nf:
@@ -666,11 +670,16 @@ class InterfaceWindow(BaseWindowController):
 			g.copyToLayer(layerName, clear=True)
 			if len(g.components) > 0 and len(g) > 0:
 				badGlyphNames.append(g.name)
-			nbPts = convert(g, self.maxDistanceValue, self.minLengthValue, self.useArcLength)
+			nbCubicPts, nbPts = convert(g, self.maxDistanceValue, self.minLengthValue, self.useArcLength)
 			nbPoints += nbPts
+			nbCubicPoints += nbCubicPts
 			if (count % tenth) == 0: progressBar.update(text=u"Converting glyphs…")
 			count += 1
-		print nbPoints, "points created."
+		print nbCubicPoints, "cubic points.",
+		if nbCubicPoints > 0:
+			print nbPoints, "points created ({:.2} % increase).".format(100.0*nbPoints/nbCubicPoints-100.0)
+		else:
+			print ''
 		if badGlyphNames != []:
 			if len(badGlyphNames) == 1:
 				print "WARNING: The glyph '"+g.name+"' has at least one contour AND one component."
