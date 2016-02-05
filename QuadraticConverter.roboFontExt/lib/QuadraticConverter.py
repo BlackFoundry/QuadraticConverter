@@ -524,7 +524,6 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 		cmds = conts[-1]
 		p0 = getFirstOnPoint(contour)
 		nseg = len(contour)
-		prevSeg = contour[nseg-1]
 		for s in range(nseg):
 			seg = contour[s]
 			if seg.type == 'line':
@@ -566,7 +565,6 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 			else:
 				#print "Unknown segment type: "+seg.type+". Skipping.",
 				p0 = seg.points[-1]
-			prevSeg = seg
 	glyph.clearContours()
 	glyph.preferredSegmentStyle = 'qcurve'
 	pen = ReverseContourPointPen(glyph.getPointPen())

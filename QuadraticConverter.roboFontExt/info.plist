@@ -13,8 +13,10 @@
 			<string></string>
 		</dict>
 	</array>
+	<key>summary</key>
+	<string>QuadraticConverter is an extension for RoboFont that converts Cubic (PostScript) UFO to Quadratic (TrueType) UFO.</string>
 	<key>developer</key>
-	<string>Jeremie Hornus and Samuel Hornus</string>
+	<string>Jérémie Hornus and Samuel Hornus</string>
 	<key>developerURL</key>
 	<string>http://www.typosansplomb.com</string>
 	<key>html</key>
