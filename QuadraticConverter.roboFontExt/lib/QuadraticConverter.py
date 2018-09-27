@@ -30,20 +30,19 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from vanilla import *
-from defconAppKit.windows.baseWindow import BaseWindowController
-from mojo.events import addObserver, removeObserver
-from lib.tools.bezierTools import curveConverter
-from robofab.world import *
-from robofab.pens.reverseContourPointPen import ReverseContourPointPen
-import robofab.interface.all.dialogs as Dialogs
+import sys, tempfile, shutil
+from os import path as ospath
 from math import sqrt, log, exp
 from AppKit import *
+from vanilla import *
+from ufoLib.pointPen import ReverseContourPointPen
+import fontTools.misc.bezierTools as rbt
+from defconAppKit.windows.baseWindow import BaseWindowController
+from mojo.events import addObserver, removeObserver
 from mojo.drawingTools import drawGlyph, save, restore, stroke, fill, strokeWidth
-from mojo.UI import UpdateCurrentGlyphView
-from os import path as ospath
-import sys, tempfile, shutil
-import robofab.misc.bezierTools as rbt
+from mojo.roboFont import CurrentFont, CurrentGlyph
+from mojo.UI import UpdateCurrentGlyphView, AskYesNoCancel, Message
+from lib.tools.bezierTools import curveConverter
 
 class Point(object):
 	__slots__ = ('x', 'y')
@@ -57,7 +56,7 @@ class Point(object):
 		elif i == 1:
 			return self.y
 		else:
-			print "ERROR ON INDEX", i
+			print("ERROR ON INDEX", i)
 			assert(False)
 	def __repr__(self):
 		return "({:f},{:f})".format(self.x, self.y)
@@ -103,10 +102,10 @@ def solveQuadratic(a, b, c):
 	if x1 > x2: return [x2, x1]
 	else:		return [x1, x2]
 
-def cubicPolyCoeffs((a,b,c,d)):
+def cubicPolyCoeffs(a, b, c, d):
 	return 3.0*(b-a), 3.0*(c - 2.0*b + a), d + 3.0*(b - c) - a
 
-def cubicInflectionParams((p1, c1, c2, p2)):
+def cubicInflectionParams(p1, c1, c2, p2):
 	"""Returns the parameter value(s) of inflection points, if any.
 
 	Many thanks to Adrian Colomitchi.
@@ -160,7 +159,7 @@ def splitCubicAtParams(cubic, ts):
 
 def splitCubicOnInflection(cubic, minLength):
 	"""Splits a cubic bezier at inflection points.
-	
+
 	Returns one, two or three cubic bezier, in a list."""
 	if lengthOfCubic(cubic) <= minLength:
 		return [cubic]
@@ -169,7 +168,7 @@ def splitCubicOnInflection(cubic, minLength):
 	if det2x2(cubic[1]-cubic[0], cubic[3]-cubic[0]) * det2x2(cubic[0]-cubic[3], cubic[2]-cubic[3]) >= 0.0:
 		return [cubic]
 
-	t = cubicInflectionParams(cubic)
+	t = cubicInflectionParams(*cubic)
 	if t == []:
 		return [cubic]
 	cub0, tempcubic = splitCubic(t[0], cubic)
@@ -181,7 +180,7 @@ def splitCubicOnInflection(cubic, minLength):
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-def paramForTangentParallelToFirstAntenna((a,b,c,d)):
+def paramForTangentParallelToFirstAntenna(a, b, c, d):
 	bc = c-b
 	ab = b-a
 	other = d - 3.0 * c + 2.0 * b
@@ -192,7 +191,7 @@ def paramForTangentParallelToFirstAntenna((a,b,c,d)):
 	return [ret]
 
 def paramForTangentThroughA(cubic):
-	c1,c2,c3 = cubicPolyCoeffs(cubic)
+	c1,c2,c3 = cubicPolyCoeffs(*cubic)
 	A = det2x2(c2,c3)
 	B = 2.0 * det2x2(c1,c3)
 	C = det2x2(c1,c2)
@@ -261,7 +260,7 @@ def tangentRatioAt(cubic, T):
 		if right_len > eps:
 			retval = (left_len / right_len - 1.0, T, a, b)
 	if debug:
-		print "ratio", retval[0], "at", retval[1]
+		print("ratio", retval[0], "at", retval[1])
 	return retval
 
 def sign(f):
@@ -282,8 +281,7 @@ def findZeroAux(cubic, tLeft, ratLeft, tRight, ratRight):
 def findZero(cubic, left, right):
 	debug = cubic[0].x == debug_X
 	if debug:
-		print " ***** Finding zero in Interval <",
-		print left, right, ">"
+		print(" ***** Finding zero in Interval <%s, %s>" % (left, right))
 	ratLeft = tangentRatioAt(cubic, left)
 	ratRight = tangentRatioAt(cubic, right)
 	if abs(ratLeft[0]) < 0.001: return ratLeft
@@ -301,29 +299,29 @@ def coolQuad(cubic):
 	lcd = cd.squaredLength()
 	if lab < 0.1:
 		if lcd < 0.1:
-			#print """I found a cubic segment that has two handles of length zero;
-			#You might want to turn it into a simple line."""
+			#print("""I found a cubic segment that has two handles of length zero;
+			#You might want to turn it into a simple line.""")
 			return splitQuadratic(0.5, (a, 0.5*(a+d), d))
 		else:
 			return splitQuadratic(0.5, (a, c, d))
 	else:
 		if lcd < 0.1: return splitQuadratic(0.5, (a, b, d))
-	
+
 	if det2x2(ab,bc) == 0 and det2x2(bc,cd) == 0:
 		mid = 0.5 * (a+d)
 		return splitQuadratic(0.5, (a, mid, d))
 
-	his,los = [makeIntervals(paramForTangentParallelToFirstAntenna(cub) + paramForTangentThroughA(cub))
+	his,los = [makeIntervals(paramForTangentParallelToFirstAntenna(*cub) + paramForTangentThroughA(cub))
 			for cub in [cubic, (d,c,b,a)]]
 	los.reverse()
 	los = [(1.0-b, 1.0-a) for (a,b) in los]
 	intervals = intersectIntervals(his, los)
-	for t in cubicInflectionParams(cubic):
+	for t in cubicInflectionParams(*cubic):
 		intervals = splitIntervalsAtT(intervals, t)
 	debug = cubic[0].x == debug_X
 	if debug:
-		print "\nIntervals for", cubic
-		print intervals
+		print("\nIntervals for", cubic)
+		print(intervals)
 	sols = []
 	for l, r in intervals:
 		d = 0.0#(r-l) / 10000.0
@@ -334,11 +332,11 @@ def coolQuad(cubic):
 	sols.sort()
 	sol = sols[0][1]
 	if debug:
-		print sol
+		print(sol)
 	mid = 0.5 * ( sol[2] + sol[3] )
 	#shortAntenna = ((cubic[0]-sol[2]).squaredLength() <= 9.0 or
 	#	(cubic[3]-sol[3]).squaredLength() <= 9.0)
-	#if shortAntenna: print "SHORT ANTENNA"
+	#if shortAntenna: print("SHORT ANTENNA")
 	return (cubic[0], sol[2], mid), (mid, sol[3], cubic[3])
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -426,7 +424,7 @@ def refine(paramStack, initLength):
 	ts.append((cubic, 1.0))
 	paramStack.append(ts)
 
-def quadraticMidPointApprox((p1, c1, c2, p2)):
+def quadraticMidPointApprox(p1, c1, c2, p2):
 	"""Returns the midpoint quadratic approximation of a cubic Bezier, disregarding the quality of approximation."""
 	#d0 = 0.5 * ((3.0 * c1) - p1)
 	#d1 = 0.5 * ((3.0 * c2) - p2)
@@ -442,8 +440,8 @@ def uniqueQuadraticWithSameTangentsAsCubic(cubic):
 	lcd = cd.squaredLength()
 	if lab < 0.1:
 		if lcd < 0.1:
-			#print """I found a cubic segment that has two handles of length zero;
-			#You might want to turn it into a simple line."""
+			#print("""I found a cubic segment that has two handles of length zero;
+			#You might want to turn it into a simple line.""")
 			return (a, 0.5*(a+d), d)
 		else:
 			return (a, c, d)
@@ -453,13 +451,13 @@ def uniqueQuadraticWithSameTangentsAsCubic(cubic):
 	v = det2x2(a - c, cd)
 	if abs( u ) < 1.0e-5:
 		# we have parallel antennas
-		return quadraticMidPointApprox(cubic) # (a, 0.5*(a+d), d)
+		return quadraticMidPointApprox(*cubic) # (a, 0.5*(a+d), d)
 	t = - v / u
 	if t < 0.0: # Line (c,d) crosses the line (a,b) on the wrong side: at point p where a is in the middle of b and p.
-		return quadraticMidPointApprox(cubic) # (a, 0.5*(a+d), d)
+		return quadraticMidPointApprox(*cubic) # (a, 0.5*(a+d), d)
 	w = det2x2(ab, d - b)
 	if w * u < 0.0: # Line (a,b) crosses the line (c,d) on the wrong side: at point p where d is in the middle of c and p.
-		return quadraticMidPointApprox(cubic) # (a, 0.5*(a+d), d)
+		return quadraticMidPointApprox(*cubic) # (a, 0.5*(a+d), d)
 	x = a + ( t * ab )
 	return (a, x, d)
 
@@ -510,7 +508,8 @@ def getFirstOnPoint(contour):
 def lineto(pen, p):
 	pen.addPoint(roundPair(p), segmentType='line', smooth=False)
 
-def curveto(pen, (a, b, p, s)):
+def curveto(pen, params):
+	a, b, p, s = params
 	pen.addPoint(roundPair(a), segmentType=None,	smooth=False)
 	pen.addPoint(roundPair(b), segmentType=None,	smooth=False)
 	pen.addPoint(roundPair(p), segmentType='qcurve', smooth=s)
@@ -533,7 +532,7 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 				nbPoints += 1
 				p0 = p1
 			elif seg.type == 'qcurve':
-				#print "Should not have quadratic segment in here. Skipping.",
+				#print("Should not have quadratic segment in here. Skipping.",)
 				p0 = seg.points[-1]
 			elif seg.type == 'curve':
 				originalNumPoints += 3
@@ -563,7 +562,7 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 					nbPoints += 3
 				p0 = p3
 			else:
-				#print "Unknown segment type: "+seg.type+". Skipping.",
+				#print("Unknown segment type: "+seg.type+". Skipping.",)
 				p0 = seg.points[-1]
 	glyph.clearContours()
 	glyph.preferredSegmentStyle = 'qcurve'
@@ -577,7 +576,7 @@ def convert(glyph, maxDistance, minLength, useArcLength):
 	# Now, we make sure that each contour starts with a ON control point
 	for contour in glyph:
 		contour.setStartSegment(0)
-	glyph.update()
+	glyph.changed()
 	return originalNumPoints, nbPoints
 
 # - - - - - - - - - - - - - - - - -
@@ -643,14 +642,14 @@ class InterfaceWindow(BaseWindowController):
 			tail = 'Quadratic_' + name + '.ufo'
 			quadPath = ospath.join(root, tail)
 			if ospath.exists(quadPath):
-				ret = Dialogs.AskYesNoCancel('The UFO "'+quadPath+'" already exists.\nShall we overwrite?',
+				ret = AskYesNoCancel('The UFO "'+quadPath+'" already exists.\nShall we overwrite?',
 						default=1) # default value is not taken into account :-(
 				if ret != 1: return False
 				shutil.rmtree(quadPath)
 			shutil.copytree(f.path, quadPath)
-			nf = RFont(quadPath, showUI=False)
+			nf = RFont(quadPath, showInterface=False)
 		else:
-			ret = Dialogs.AskYesNoCancel("The font will be modified in place.\nThen you can save it in the UFO format.\nShall we proceed?",
+			ret = AskYesNoCancel("The font will be modified in place.\nThen you can save it in the UFO format.\nShall we proceed?",
 					default=1) # default value is not taken into account :-(
 			if ret != 1: return False
 			nf = f
@@ -673,24 +672,24 @@ class InterfaceWindow(BaseWindowController):
 			nbCubicPoints += nbCubicPts
 			if (count % tenth) == 0: progressBar.update(text=u"Converting glyphs…")
 			count += 1
-		print nbCubicPoints, "cubic points.",
+		print(nbCubicPoints, "cubic points.",)
 		if nbCubicPoints > 0:
-			print nbPoints, "points created ({:.2} % increase).".format(100.0*nbPoints/nbCubicPoints-100.0)
+			print(nbPoints, "points created ({:.2} % increase).".format(100.0*nbPoints/nbCubicPoints-100.0))
 		else:
-			print ''
+			print('')
 		if badGlyphNames != []:
 			if len(badGlyphNames) == 1:
-				print "WARNING: The glyph '"+g.name+"' has at least one contour AND one component."
+				print("WARNING: The glyph '"+g.name+"' has at least one contour AND one component.")
 			else:
-				print "WARNING: The following glyphs have at least one contour AND one component:"
-				for n in badGlyphNames: print n+", ",
-				print '\n'
+				print("WARNING: The following glyphs have at least one contour AND one component:")
+				for n in badGlyphNames: print(n+", ", end='')
+				print('\n')
 		if f.path != None:
 			progressBar.update(text=u'Saving, then opening…')
 			nf.save()
-			OpenFont(quadPath, showUI=True)
+			OpenFont(quadPath, showInterface=True)
 		else:
-			nf.update()
+			nf.changed()
 		return True
 
 	def drawDiscAtPoint(self, r, x, y, color):
@@ -768,29 +767,29 @@ class InterfaceWindow(BaseWindowController):
 		if None == g: return
 		layerToConvert = self.layers[self.w.layerPopup.get()]
 		if layerToConvert == 'foreground':
-			Dialogs.Message("I can only convert contours from a layer different from 'foreground'.")
+			Message("I can only convert contours from a layer different from 'foreground'.")
 			return
 		g.flipLayers('foreground', layerToConvert)
 		g.copyToLayer(layerToConvert)
 		convert(g, self.maxDistanceValue, self.minLengthValue, self.useArcLength)
-		CurrentFont().update()
+		CurrentFont().changed()
 		UpdateCurrentGlyphView()
 
 	def convertCurrentFontCallback(self, sender):
 		f = CurrentFont()
 		if f.lib['com.typemytype.robofont.segmentType'] == 'qcurve':
-			Dialogs.Message("I can only convert cubic fonts.")
+			Message("I can only convert cubic fonts.")
 			return
 		progress = self.startProgress(u'Copying font…')
 		closeWindow = False
 		try:
 			closeWindow = self.convertFont(f, progress)
 		except:
-			print "Unexpected error in QuadraticConverter:", sys.exc_info()
+			print("Unexpected error in QuadraticConverter:", sys.exc_info())
 		progress.close()
 		#if closeWindow:
 		#	self.w.close()
-	
+
 	def closeCallBack(self, sender):
 		self.w.close()
 
