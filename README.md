@@ -10,6 +10,8 @@ Copyright (c) 2015, Samuel Hornus and Jérémie Hornus
 
 ## Changes
 
+- **0.7.3**
+  - Updated code to RoboFont 3 (Python 3, FontParts API, Mechanic 2)
 - **0.7.2**
   - Fixed potential weird behavior when cubic source layer is chosen in the popup button (UI bug)
 - **0.7.1**
