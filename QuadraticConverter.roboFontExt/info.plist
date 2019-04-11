@@ -28,16 +28,12 @@
 	<key>name</key>
 	<string>QuadraticConverter</string>
 	<key>requiresVersionMajor</key>
-	<string>1</string>
+	<string>3</string>
 	<key>requiresVersionMinor</key>
-	<string>5</string>
+	<string>2</string>
 	<key>timeStamp</key>
 	<real>1411581854.809669</real>
 	<key>version</key>
-	<string>0.7.2</string>
-	<key>repository</key>
-	<string>sansplomb/QuadraticConverter</string>
-	<key>extensionPath</key>
-	<string>QuadraticConverter.roboFontExt</string>
+	<string>0.7.3</string>
 </dict>
 </plist>
