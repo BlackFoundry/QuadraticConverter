@@ -89,6 +89,9 @@ def det2x2(a, b):
 eps = 1.0e-5
 
 def solveQuadratic(a, b, c):
+	"""Returns a ascending-sorted list of roots."""
+	# FIXME: Why do we not check the case disc ≈ 0 ? (one root) : check that the users of this function are aware of
+	# this.
 	if abs(a) < eps:
 		if abs(b) < eps: return []
 		return [- c / b]
@@ -100,9 +103,11 @@ def solveQuadratic(a, b, c):
 	x1 = q / a
 	x2 = c / q
 	if x1 > x2: return [x2, x1]
-	else:		return [x1, x2]
+	else: return [x1, x2]
 
 def cubicPolyCoeffs(a, b, c, d):
+	"""Converts the four control points of a cubic Bezier curve into the degree-3 polynomial form.
+	Returns the coefficient of the monomials of degree 1, 2 and 3."""
 	return 3.0*(b-a), 3.0*(c - 2.0*b + a), d + 3.0*(b - c) - a
 
 def cubicInflectionParams(p1, c1, c2, p2):
@@ -139,6 +144,8 @@ def splitCubic(t, cubic):
 	return (cubic[0], a0, b0, c0), (c0, b1, a2, cubic[3])
 
 def splitCubicParamUniformly(cubic, n):
+	"""Splits a cubic Bezier into n cubic Bezier uniformly in parameter-space.
+	Returns max(1,n) cubic Bezier curves, as a list."""
 	if n <= 1:
 		return [cubic]
 	c_list = [None] * n
@@ -148,6 +155,8 @@ def splitCubicParamUniformly(cubic, n):
 	return c_list
 
 def splitCubicAtParams(cubic, ts):
+	"""Splits a cubic Bezier into |ts| cubic Bezier at parameters specified in ts.
+	Returns |ts|+1 cubic Bezier curves, as a list."""
 	n = len(ts)
 	c_list = [cubic] * (n+1)
 	prev_t = 0.0
@@ -181,6 +190,7 @@ def splitCubicOnInflection(cubic, minLength):
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 def paramForTangentParallelToFirstAntenna(a, b, c, d):
+	"""Find a point on the cubic Bezier where the tangent is parallel to the first antenna (b-a)."""
 	bc = c-b
 	ab = b-a
 	other = d - 3.0 * c + 2.0 * b
@@ -191,6 +201,7 @@ def paramForTangentParallelToFirstAntenna(a, b, c, d):
 	return [ret]
 
 def paramForTangentThroughA(cubic):
+	"""Finds a point on the cubic Bezier where the tangent line goes through the first control point."""
 	c1,c2,c3 = cubicPolyCoeffs(*cubic)
 	A = det2x2(c2,c3)
 	B = 2.0 * det2x2(c1,c3)
@@ -198,6 +209,9 @@ def paramForTangentThroughA(cubic):
 	return [t for t in solveQuadratic(A, B, C) if (t>=eps) and (t<=1.0-eps)]
 
 def makeIntervals(evts):
+	"""From evts=[a,b,c], create a list of intervals: [(0,a), (b,c)]
+	From evts=[a,b,c,d], create a list of intervals: [(0,a), (b,c), (d,1)].
+	Assumes all values in evts are in (0,1)"""
 	if evts == []: return [(0.0, 1.0)]
 	evts.sort()
 	left = 0.0
@@ -213,6 +227,8 @@ def makeIntervals(evts):
 	return intervals
 
 def intersectIntervals(left, right):
+	"""Returns the intersection of two sorted lists of intervals.
+	Returns a sorted list of intervals"""
 	if left == []: return []
 	if right == []: return []
 	l0, l1 = left[0]
@@ -238,6 +254,13 @@ def splitIntervalsAtT(intervals, T):
 debug_X = 999999.0
 
 def tangentRatioAt(cubic, T):
+	"""1. Compute the tangent at point at parameter T. This is (l2-l3) or (r3-r2) (l3=r3=point at T).
+	2. From l3/r3 : find the distance *along* the local tangent until we hit the line supporting the
+	first antenna and the last antenna.
+	3. Returns the ratio of these distances, minus one.
+	A returned value of zero means that both distances are equal. This is what we want in order for the
+	ON control point at T be implicit (not stored), in the TrueType contour format.
+	"""
 	debug = (cubic[0].x == debug_X)
 	(l0, l1, l2, l3), (r3, r2, r1, r0) = splitCubic(T, cubic)
 	u = det2x2(l1-l0, l2-l3)
@@ -279,6 +302,8 @@ def findZeroAux(cubic, tLeft, ratLeft, tRight, ratRight):
 		return findZeroAux(cubic, tLeft, ratLeft, tMid, midRat)
 
 def findZero(cubic, left, right):
+	"""Finds a point along the cubic for which the tangent ratio (see tangentRatioAt() above) is zero).
+	Dichotomic search."""
 	debug = cubic[0].x == debug_X
 	if debug:
 		print(" ***** Finding zero in Interval <%s, %s>" % (left, right))
@@ -290,13 +315,24 @@ def findZero(cubic, left, right):
 		return findZeroAux(cubic, left, ratLeft, right, ratRight)
 	else: return None
 
-def coolQuad(cubic):
+def implicitBiQuadApproximationOfCubic(cubic):
+	"""Tries to find an approximation of cubic (a,b,c,d) by *two* quadratic Bezier
+	for which the common ON point is implicit : in the middle of the two OFF points:
+	(a, E, F) and (F, G, d) so that
+		- E is on the ray (a, a-->b)
+		- G is on the ray (d, d-->c)
+		- F is the middle point of [E,G] and lies on the cubic Bezier.
+	The main advantage is that we don't need to store the point F because E and G will be marked as OFF points so
+	that F will be generated automatically.
+	"""
 	(a,b,c,d) = cubic
 	ab = b-a
 	bc = c-b
 	cd = d-c
 	lab = ab.squaredLength()
 	lcd = cd.squaredLength()
+
+	# Check the cases when one antenna or both antennas are too short
 	if lab < 0.1:
 		if lcd < 0.1:
 			#print("""I found a cubic segment that has two handles of length zero;
@@ -307,10 +343,15 @@ def coolQuad(cubic):
 	else:
 		if lcd < 0.1: return splitQuadratic(0.5, (a, b, d))
 
+	# Case if all control points are aligned
 	if det2x2(ab,bc) == 0 and det2x2(bc,cd) == 0:
 		mid = 0.5 * (a+d)
 		return splitQuadratic(0.5, (a, mid, d))
 
+	# General case.
+	# First, compute in the parameter space [0,1] a set of intervals where the tangent line intersects
+	# both rays (a,a-->b) and (d,d-->c).
+	# For later dichotomic search, we also split these interval at inflection point parameters.
 	his,los = [makeIntervals(paramForTangentParallelToFirstAntenna(*cub) + paramForTangentThroughA(cub))
 			for cub in [cubic, (d,c,b,a)]]
 	los.reverse()
@@ -322,12 +363,15 @@ def coolQuad(cubic):
 	if debug:
 		print("\nIntervals for", cubic)
 		print(intervals)
+	# Second, on each good interval, try to find a point which equalizes the tangent ratio.
 	sols = []
 	for l, r in intervals:
 		d = 0.0#(r-l) / 10000.0
 		s = findZero(cubic, l+d, r-d)
 		if s != None: sols.append((abs(s[1]-0.5), s))
 	if sols == []:
+		# FIXME: would be better to return
+		# tuple(uniqueQuadraticWithSameTangentsAsCubic(c) for c in splitCubic(0.5, cubic))
 		return splitQuadratic(0.5, uniqueQuadraticWithSameTangentsAsCubic(cubic))
 	sols.sort()
 	sol = sols[0][1]
@@ -342,6 +386,7 @@ def coolQuad(cubic):
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 def distanceToQuadratic(m, quad):
+	"""Compute the euclidean distance between a point m and a quadratic Bezier."""
 	p0, p1, p2 = quad
 	# From http://blog.gludion.com/2009/08/distance-to-quadratic-bezier-curve.html
 	A = p1 - p0
@@ -356,12 +401,9 @@ def distanceToQuadratic(m, quad):
 	dists = [(m-p).length() for p in (pts+[p0,p2])]
 	return min(dists)
 
-def QuadCubicDistance(quad, cubic):
-	ts = [0.2, 0.4, 0.5, 0.6, 0.8]
-	d = [distanceToQuadratic(splitCubic(t, cubic)[0][3], quad) for t in ts]
-	return max(d)
-
-def TwoQuadsCubicDistance(q1, q2, cubic):
+def TwoQuadsCubicError(q1, q2, cubic):
+	"""Returns an approximation of the error between two quadratic curves and a cubic Bezier curve.
+	Compute 5 points on the cubic, and returns the maximum distance of these points to the quadratics."""
 	ts = [0.2, 0.4, 0.5, 0.6, 0.8]
 	pts = [splitCubic(t, cubic)[0][3] for t in ts]
 	d = [min(distanceToQuadratic(p, q1), distanceToQuadratic(p, q2)) for p in pts]
@@ -387,6 +429,7 @@ def fpflAux(cubic, l0, tleft, lleft, tright, lright):
 	return fpflAux(cubic, l0, tleft, lleft, guess, ll)
 
 def findParamForLength(cubic, cubicLength, l0):
+	"""Find parameter value for which the sub-curve has the required length l0."""
 	return fpflAux(cubic, l0, 0.0, 0.0, 1.0, cubicLength)
 
 def gcd(a,b):
@@ -433,6 +476,8 @@ def quadraticMidPointApprox(p1, c1, c2, p2):
 	return (p1, c, p2)
 
 def uniqueQuadraticWithSameTangentsAsCubic(cubic):
+	"""If the rays (a,a-->b) and (d,d-->c) do intersect at point Q, then returns (a,Q,d).
+	Otherwise, return the usual midpoint approximation."""
 	a, b, c, d = cubic
 	ab = b - a
 	cd = d - c
@@ -458,14 +503,19 @@ def uniqueQuadraticWithSameTangentsAsCubic(cubic):
 	w = det2x2(ab, d - b)
 	if w * u < 0.0: # Line (a,b) crosses the line (c,d) on the wrong side: at point p where d is in the middle of c and p.
 		return quadraticMidPointApprox(*cubic) # (a, 0.5*(a+d), d)
-	x = a + ( t * ab )
+	x = a + ( t * ab ) # |x| is the intersection point of the two antenna-supporting lines.
 	return (a, x, d)
 
 def hasGoodSmoothQuadraticApprox(cubic, dmax, minLength):
-	q1, q2 = coolQuad(cubic)
-	return (TwoQuadsCubicDistance(q1, q2, cubic) <= dmax, (q1,q2))
+	"""Returns True if the BiQuad approximation is good. False otherwise.
+	Also returns the BiQuad approximation."""
+	q1, q2 = implicitBiQuadApproximationOfCubic(cubic)
+	return (TwoQuadsCubicError(q1, q2, cubic) <= dmax, (q1,q2))
 
 def oneHasBadApprox(cubics, dmax, minLength):
+	"""Checks if all cubics in the list have a good BiQuad approximation.
+	If one of them has not, then return False.
+	Also returns the BiQuad Approximations if all of them are good."""
 	quads = []
 	for c in cubics:
 		(good, q) =  hasGoodSmoothQuadraticApprox(c, dmax, minLength)
@@ -475,6 +525,9 @@ def oneHasBadApprox(cubics, dmax, minLength):
 	return (False, quads)
 
 def adaptiveSmoothCubicSplit(cubic, dmax, minLength, useArcLength):
+	"""Subdivide the input cubic into more and more sub-cubics until all sub-cubics can be well approximated by a
+	BiQuadratic curve (two quadratics with an implicit ON-point in common.
+	If it fails, returns the BiQuad approx anyway"""
 	l = lengthOfCubic(cubic)
 	if minLength > 0.0:
 		maxN = min(10, int(l / minLength))
@@ -493,7 +546,7 @@ def adaptiveSmoothCubicSplit(cubic, dmax, minLength, useArcLength):
 			cubics = splitCubicParamUniformly(cubic, n)
 		(badApprox, quads) = oneHasBadApprox(cubics, dmax, minLength)
 	if badApprox:
-		return [coolQuad(c) for c in cubics]
+		return [implicitBiQuadApproximationOfCubic(c) for c in cubics]
 	else:
 		return quads
 
