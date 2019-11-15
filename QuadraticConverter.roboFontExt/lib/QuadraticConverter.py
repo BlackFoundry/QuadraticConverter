@@ -35,7 +35,7 @@ from os import path as ospath
 from math import sqrt, log, exp
 from AppKit import *
 from vanilla import *
-from ufoLib.pointPen import ReverseContourPointPen
+from fontTools.ufoLib.pointPen import ReverseContourPointPen
 import fontTools.misc.bezierTools as rbt
 from defconAppKit.windows.baseWindow import BaseWindowController
 from mojo.events import addObserver, removeObserver
