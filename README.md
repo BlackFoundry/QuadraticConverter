@@ -9,7 +9,8 @@ It might be installed manually ([download](https://github.com/sansplomb/Quadrati
 Copyright (c) 2015, Samuel Hornus and Jérémie Hornus
 
 ## Changes
-
+- **0.7.4**
+  - Updated code to use ufolib from fontTools
 - **0.7.3**
   - Updated code to RoboFont 3 (Python 3, FontParts API, Mechanic 2)
 - **0.7.2**
