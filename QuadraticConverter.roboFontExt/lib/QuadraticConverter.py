@@ -59,13 +59,15 @@ class Point(object):
 			print("ERROR ON INDEX", i)
 			assert(False)
 	def __repr__(self):
-		return "({:f},{:f})".format(self.x, self.y)
+		return "Point({:f},{:f})".format(self.x, self.y)
 	def __add__(self, rhs): # rhs = right hand side
 		return Point(self.x + rhs.x, self.y + rhs.y)
 	def __sub__(self, rhs):
 		return Point(self.x - rhs.x, self.y - rhs.y)
 	def __or__(self, rhs):
 		return (self.x * rhs.x + self.y * rhs.y)
+	def __lt__(self, rhs):
+		return (self.x, self.y) < (rhs.x, rhs.y)
 	def __mul__(self, s): # 's' is a number, not a point
 		return Point(s * self.x, s * self.y)
 	def __rmul__(self, s): # 's' is a number, not a point
